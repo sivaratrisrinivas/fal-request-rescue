@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import llm, store
-from .engine import build_disposition
+from .engine import build_disposition, customer_draft
 from .investigate import ALLOWLIST, run_investigation
 from .redact import contains_secret, redact_json, redact_text
 
@@ -239,6 +239,16 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         if hist is None:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
         return hist
+
+    @app.get("/cases/{case_id}/customer-draft")
+    def draft(case_id: str):
+        case = store.get_case(db_path, case_id)
+        if case is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        if store.latest_disposition(db_path, case_id) is None:
+            return _error(404, "NOT_FOUND", f"No disposition for case {case_id} yet")
+        inv = run_investigation(case)
+        return {"case_id": case_id, "draft": customer_draft(case, build_disposition(case, inv))}
 
     @app.post("/cases/{case_id}/approve")
     def approve(case_id: str, body: ApproveRequest):

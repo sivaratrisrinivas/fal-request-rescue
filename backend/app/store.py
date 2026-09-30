@@ -302,6 +302,21 @@ def history(db_path: str, case_id: str) -> dict | None:
             "findings": findings, "actions": actions, "audit": audit}
 
 
+def latest_disposition(db_path: str, case_id: str) -> str | None:
+    conn = _connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT result FROM actions WHERE case_id = ? AND action_type = 'disposition'"
+            " ORDER BY created_at DESC LIMIT 1",
+            (case_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return json.loads(row["result"]).get("disposition")
+    finally:
+        conn.close()
+
+
 def list_cases(db_path: str, page: int = 1, page_size: int = 20) -> dict:
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -316,8 +331,11 @@ def list_cases(db_path: str, page: int = 1, page_size: int = 20) -> dict:
     finally:
         conn.close()
     total_pages = max(1, (total + page_size - 1) // page_size)
+    rows = [dict(r) for r in rows]
+    for r in rows:
+        r["disposition"] = latest_disposition(db_path, r["id"])
     return {
-        "data": [dict(r) for r in rows],
+        "data": rows,
         "pagination": {"page": page, "pageSize": page_size, "totalItems": total, "totalPages": total_pages},
     }
 
@@ -345,6 +363,9 @@ def get_case(db_path: str, case_id: str) -> dict | None:
         "response_body": json.loads(row["response_redacted"]) if row["response_redacted"] else None,
         "status": row["status"],
         "had_secret": bool(row["had_secret"]),
+        # Hard replay until ticket 05 adds the live path; the UI badges this flag.
+        "replay": True,
+        "disposition": latest_disposition(db_path, row["id"]),
         "evidence": [
             {
                 "id": e["id"], "kind": e["kind"], "source": e["source"],

@@ -29,6 +29,23 @@ def _clamp_fix(payload: dict, errors: list) -> dict:
     return fixed
 
 
+def customer_draft(case: dict, disp: dict) -> str:
+    """Deterministic customer-facing draft. Preview only — sending needs approval."""
+    kind = disp["disposition"]
+    if kind == "correction":
+        fields = ", ".join(sorted((disp.get("corrected_payload") or {}).keys()))
+        return ("Suggested fix, pending your approval — do not send yet:\n"
+                f"The request failed schema validation. Proposed correction touches: {fields}.\n"
+                "Approve the correction first, then reply with the corrected request.")
+    if kind == "need-information":
+        items = "\n".join(f"- {m}" for m in disp.get("missing", []))
+        return ("To proceed we need the following evidence:\n"
+                f"{items}\n"
+                "Nothing has been rerun. Reply once the items above are provided.")
+    issue = (disp.get("packet") or {}).get("issue", "Under triage.")
+    return ("This needs engineering triage — do not promise a fix yet:\n"
+            f"{issue}\n"
+            f"Internal reference: {case['id']}. Escalation packet attached.")
 def _packet(case: dict, inv: dict, issue: str, hypothesis: str) -> dict:
     ev = [{"id": e["id"], "kind": e["kind"], "digest": e["digest"]}
           for e in case.get("evidence", [])]
