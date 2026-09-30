@@ -345,7 +345,7 @@ def list_cases(db_path: str, page: int = 1, page_size: int = 20) -> dict:
     try:
         total = conn.execute("SELECT COUNT(*) AS n FROM cases").fetchone()["n"]
         rows = conn.execute(
-            "SELECT id, created_at, endpoint_id, schema_version, status, origin"
+            "SELECT id, created_at, endpoint_id, schema_version, status, origin, report_redacted"
             " FROM cases ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (page_size, (page - 1) * page_size),
         ).fetchall()
@@ -354,6 +354,7 @@ def list_cases(db_path: str, page: int = 1, page_size: int = 20) -> dict:
     total_pages = max(1, (total + page_size - 1) // page_size)
     rows = [dict(r) for r in rows]
     for r in rows:
+        r["report"] = r.pop("report_redacted")
         r["disposition"] = latest_disposition(db_path, r["id"])
     return {
         "data": rows,

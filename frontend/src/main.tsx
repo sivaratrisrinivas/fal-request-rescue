@@ -7,6 +7,7 @@ type CaseRow = {
   endpoint_id: string;
   schema_version: string;
   status: string;
+  report: string;
   disposition: string | null;
 };
 
@@ -192,11 +193,23 @@ function Detail({ id, back }: { id: string; back: () => void }) {
   if (!detail || !inv) return <main><p>Loading…</p></main>;
 
   return (
-    <main style={{ fontFamily: "system-ui", maxWidth: 860, margin: "2rem auto", padding: "0 1rem" }}>
-      <button onClick={back}>← Inbox</button>{" "}
-      {detail.replay
-        ? <span style={badge}>replay · synthetic fixture — not a live fal request</span>
-        : <span style={{ ...badge, borderColor: "crimson" }}>live fal request</span>}
+    <div style={{
+      borderTop: detail.replay ? "10px solid #d6a94c" : "10px solid #dc2626",
+      minHeight: "100vh", background: detail.replay ? "#faf6ef" : "#fef2f2",
+    }}>
+      <span style={{
+        background: detail.replay ? "#d6a94c" : "#dc2626",
+        color: detail.replay ? "#1c1917" : "#fff",
+        fontSize: 12, letterSpacing: 2, padding: "4px 14px", borderRadius: "0 0 8px 0",
+      }}>
+        {detail.replay ? "PRACTICE · SYNTHETIC" : "LIVE FAL REQUEST"}
+      </span>
+      <main style={{ fontFamily: "Georgia, serif", maxWidth: 680, margin: "0 auto", padding: "24px 20px 80px" }}>
+      <p style={{ fontFamily: "system-ui", fontSize: 14 }}>
+        <button onClick={back} style={{ background: "none", border: "none", color: "#9a3412", textDecoration: "underline", cursor: "pointer", fontSize: 14, padding: 0 }}>
+          ← waiting
+        </button>
+      </p>
 
       <h1>{disp ? ANSWER_TITLE[disp.disposition] : "Reading the case…"}</h1>
       <p><em>“{detail.report}”</em></p>
@@ -271,7 +284,8 @@ function Detail({ id, back }: { id: string; back: () => void }) {
       <label>Actor <input value={actor} onChange={(e) => setActor(e.target.value)} /></label>{" "}
       <button onClick={() => approve("live-test")}>Approve paid run</button>{" "}
       <button onClick={downloadExport}>Export case JSON</button>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -310,25 +324,35 @@ function App() {
   if (selected) return <Detail id={selected} back={() => { setSelected(null); void refresh(); }} />;
 
   return (
-    <main style={{ fontFamily: "system-ui", maxWidth: 760, margin: "2rem auto", padding: "0 1rem" }}>
-      <h1>fal Request Rescue</h1>
-      <p><span style={badge}>replay mode</span> No credentials required. Synthetic fixtures only — never live fal traffic.</p>
-      {error && <p role="alert" style={{ color: "crimson" }}>{error}</p>}
-      <form onSubmit={createCase}>
-        <input value={endpointId} onChange={(e) => setEndpointId(e.target.value)} aria-label="endpoint id" style={{ width: "100%", marginBottom: 8 }} />
-        <textarea value={report} onChange={(e) => setReport(e.target.value)} placeholder="Customer report (sanitized — no keys)" rows={3} style={{ width: "100%" }} />
-        <button type="submit">Create case</button>
-      </form>
-      <h2>Inbox ({cases.length})</h2>
-      <ul>
+    <div style={{ borderTop: "10px solid #d6a94c", minHeight: "100vh", background: "#faf6ef" }}>
+      <span style={{ background: "#d6a94c", fontSize: 12, letterSpacing: 2, padding: "4px 14px", borderRadius: "0 0 8px 0" }}>
+        PRACTICE · SYNTHETIC
+      </span>
+      <main style={{ fontFamily: "Georgia, serif", maxWidth: 680, margin: "0 auto", padding: "24px 20px 80px" }}>
+        <p style={{ fontFamily: "system-ui", fontSize: 14, color: "#57534e" }}>{cases.length} waiting.</p>
+        <h1>What needs you most?</h1>
+        {error && <p role="alert" style={{ color: "crimson" }}>{error}</p>}
         {cases.map((c) => (
-          <li key={c.id}>
-            <button onClick={() => setSelected(c.id)}>{c.id}</button>{" "}
-            {c.endpoint_id}@{c.schema_version} — {c.disposition ?? "no disposition"}
-          </li>
+          <p key={c.id} style={{ fontFamily: "system-ui", fontSize: 15 }}>
+            <button onClick={() => setSelected(c.id)}
+              style={{ background: "none", border: "none", color: "#9a3412", textDecoration: "underline", cursor: "pointer", fontSize: 15, padding: 0 }}>
+              {c.report ? c.report.slice(0, 70) : "Untitled report"}
+            </button>{" "}— {c.disposition ?? "not read yet"}
+          </p>
         ))}
-      </ul>
-    </main>
+        <p style={{ fontFamily: "system-ui", fontSize: 14, color: "#57534e" }}>
+          Practice room — nothing here touches real traffic.
+        </p>
+        <details>
+          <summary style={{ fontFamily: "system-ui", fontSize: 14, cursor: "pointer" }}>＋ New case</summary>
+          <form onSubmit={createCase} style={{ marginTop: 8 }}>
+            <input value={endpointId} onChange={(e) => setEndpointId(e.target.value)} aria-label="endpoint id" style={{ width: "100%", marginBottom: 8 }} />
+            <textarea value={report} onChange={(e) => setReport(e.target.value)} placeholder="Customer report (sanitized — no keys)" rows={3} style={{ width: "100%" }} />
+            <button type="submit">Create case</button>
+          </form>
+        </details>
+      </main>
+    </div>
   );
 }
 
