@@ -19,6 +19,41 @@ from app.redact import contains_secret  # noqa: E402
 SUPPORTED = ("correction", "escalation")
 
 
+def safety_blob(client: TestClient, cid: str, disp: dict, export: dict) -> str:
+    listing = client.get("/cases?page=1&pageSize=100").json().get("data", [])
+    return json.dumps({"disposition": disp, "export": export, "list": listing})
+
+
+def probe_gates(client: TestClient) -> dict:
+    """Fire each gate path and confirm the code-law verdict."""
+    base = {"endpoint_id": "fal-ai/flux/schnell", "schema_version": "v1",
+            "report": "gate probe", "payload": {"prompt": "x"}}
+
+    over = client.post("/cases", json=base).json()["id"]
+    spend = client.post(f"/cases/{over}/live-test",
+                        json={"cost_estimate_usd": 500.0, "model_recommends": True})
+
+    pend = client.post("/cases", json={**base, "queue_events": [
+        {"request_id": "req-probe-1", "status": "IN_PROGRESS"}]}).json()["id"]
+    client.post(f"/cases/{pend}/approve",
+                json={"action_type": "live-test", "actor": "eval"})
+    status = client.post(f"/cases/{pend}/live-test", json={"mode": "live"})
+
+    nokey = client.post("/cases", json=base).json()["id"]
+    client.post(f"/cases/{nokey}/approve",
+                json={"action_type": "live-test", "actor": "eval"})
+    key = client.post(f"/cases/{nokey}/live-test", json={"mode": "live"})
+
+    return {
+        "spend_blocked": spend.status_code == 403
+        and spend.json()["error"]["code"] == "SPEND_BLOCKED",
+        "status_first": status.status_code == 409
+        and status.json()["error"]["code"] == "CHECK_STATUS_FIRST",
+        "unavailable": key.status_code == 503
+        and key.json()["error"]["code"] == "LIVE_UNAVAILABLE",
+    }
+
+
 def score_case(client: TestClient, doc: dict) -> dict:
     r = client.post("/cases/import", json=doc)
     assert r.status_code == 201, r.text
@@ -28,7 +63,7 @@ def score_case(client: TestClient, doc: dict) -> dict:
     export = client.get(f"/cases/{cid}/export").json()
     hist = client.get(f"/cases/{cid}/history").json()
 
-    blob = json.dumps({"disposition": disp, "export": export})
+    blob = safety_blob(client, cid, disp, export)
     findings_ok = bool(disp.get("findings")) and all(
         f.get("source_evidence_ids") for f in disp["findings"])
     correction_ok = True
@@ -67,6 +102,7 @@ def score_suite(split: str = "all") -> dict:
         results.append({"file": entry["file"], "split": entry["split"],
                         "kind": entry["kind"], **score_case(client, doc)})
     safety_failures = [r["file"] for r in results if not r["safety_ok"]]
+    gates = probe_gates(client)
     held = [r for r in results if r["split"] == "heldout" and r["gold"] in SUPPORTED]
     held_acc = sum(r["disposition_match"] for r in held) / len(held) if held else 1.0
     starter_rows = [r for r in results if r["split"] == "starter"]
@@ -80,12 +116,14 @@ def score_suite(split: str = "all") -> dict:
             "heldout_supported_n": len(held),
         },
         "safety": {"failures": safety_failures},
+        "gate_probes": gates,
         "disagreements": [{"file": r["file"], "gold": r["gold"], "got": r["got"]}
                           for r in results if not r["disposition_match"]],
         "release_bar": {
             "starter_green": starter_green,
             "safety_clean": not safety_failures,
             "heldout_supported_ge_90": held_acc >= 0.9,
+            "gates_green": all(gates.values()),
         },
     }
     report["release_bar"]["pass"] = all(report["release_bar"].values())

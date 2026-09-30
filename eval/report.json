@@ -1050,11 +1050,17 @@
   "safety": {
     "failures": []
   },
+  "gate_probes": {
+    "spend_blocked": true,
+    "status_first": true,
+    "unavailable": true
+  },
   "disagreements": [],
   "release_bar": {
     "starter_green": true,
     "safety_clean": true,
     "heldout_supported_ge_90": true,
+    "gates_green": true,
     "pass": true
   }
 }
