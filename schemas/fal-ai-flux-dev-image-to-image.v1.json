@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "fal-ai/flux/dev image-to-image request",
+  "snapshot_version": "v1",
+  "endpoint_id": "fal-ai/flux/dev/image-to-image",
+  "type": "object",
+  "required": ["prompt", "image_url"],
+  "properties": {
+    "prompt": {"type": "string", "minLength": 1},
+    "image_url": {"type": "string", "format": "uri"},
+    "strength": {"type": "number", "minimum": 0, "maximum": 1},
+    "num_images": {"type": "integer", "minimum": 1, "maximum": 4},
+    "seed": {"type": "integer"}
+  },
+  "additionalProperties": true
+}

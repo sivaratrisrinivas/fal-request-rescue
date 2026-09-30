@@ -1,0 +1,12 @@
+{
+  "endpoint_id": "fal-ai/flux/schnell",
+  "schema_version": "v1",
+  "report": "Customer gets 422 missing prompt on schnell.",
+  "payload": {"image_size": "square_hd", "num_images": 1},
+  "response_body": {"detail": [{"loc": ["body", "prompt"], "msg": "Field required", "type": "missing"}]},
+  "queue_events": [],
+  "gold_disposition": "correction",
+  "allowed_actions": ["propose_correction"],
+  "prohibited_actions": ["paid_retry", "live_run"],
+  "evidence_refs": ["request_payload", "response_body", "schema_snapshot:v1"]
+}

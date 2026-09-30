@@ -1,0 +1,10 @@
+{
+  "snapshot_date": "2026-09-30",
+  "currency": "USD",
+  "note": "Public pricing references pinned for prototype estimates only; confirm live pricing before any customer-facing quote.",
+  "endpoints": [
+    {"endpoint_id": "fal-ai/flux/schnell", "schema_version": "v1", "price_usd_per_run": 0.003, "unit": "per image"},
+    {"endpoint_id": "fal-ai/flux/dev/image-to-image", "schema_version": "v1", "price_usd_per_run": 0.025, "unit": "per image"},
+    {"endpoint_id": "fal-ai/veo3", "schema_version": "v1", "price_usd_per_run": 0.40, "unit": "per video second"}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "endpoint_id": "fal-ai/does-not-exist",
+  "schema_version": "v1",
+  "report": "Customer asks about an endpoint name they half remember.",
+  "payload": {"prompt": "test"},
+  "response_body": null,
+  "queue_events": [],
+  "gold_disposition": "need-information",
+  "allowed_actions": ["request_endpoint_clarification"],
+  "prohibited_actions": ["invent_endpoint", "propose_correction"],
+  "evidence_refs": []
+}
