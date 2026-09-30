@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from . import fal_live, llm, store
 from .engine import build_disposition, customer_draft
 from .investigate import ALLOWLIST, SCHEMA_DIR, run_investigation
+from .run_policy import decide_run
 from .redact import contains_secret, redact_json, redact_text
 
 SESSION_CAP_USD = float(os.environ.get("SESSION_CAP_USD", "2.0"))
@@ -302,62 +303,62 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         if case is None:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
         if body.mode == "live":
-            inv = run_investigation(case)
-            pending = [q["request_id"] for q in inv["queue"]
-                       if q["status"] in ("IN_QUEUE", "IN_PROGRESS")]
-            if pending and not body.status_checked:
-                store.save_action(db_path, case_id, "live-test", store._digest({"pending": pending}),
-                                  {"status": "rejected", "reason": "status unchecked"},
-                                  approval_state="rejected")
-                return _error(409, "CHECK_STATUS_FIRST",
-                              f"Request(s) {', '.join(pending)} still pending — check status before a new run")
-            if not fal_live.api_key():
-                store.save_action(db_path, case_id, "live-test", store._digest({"mode": "live"}),
-                                  {"status": "rejected", "reason": "no key"},
-                                  approval_state="rejected")
-                return _error(503, "LIVE_UNAVAILABLE", "Set FAL_API_KEY server-side for live runs")
-            try:
-                submitted = fal_live.submit(case["endpoint_id"], case["payload"])
-                seen = fal_live.fetch_status(submitted["status_url"]) if submitted.get("status_url") else {"status": submitted["status"]}
-            except Exception as exc:
-                return _error(503, "LIVE_UNAVAILABLE", f"{type(exc).__name__}")
-            cost = _price_for(case["endpoint_id"])
-            spent = store.spend_total(db_path, case_id)
-            if spent + cost > SESSION_CAP_USD or spent + cost > DAY_CAP_USD:
-                store.save_action(db_path, case_id, "live-test", store._digest(submitted),
-                                  {"status": "blocked"}, cost_estimate=cost, approval_state="blocked")
-                return _error(403, "SPEND_BLOCKED", "Live cost exceeds caps")
-            if not store.approved_action_exists(db_path, case_id, "live-test"):
-                store.save_action(db_path, case_id, "live-test", store._digest(submitted),
-                                  {"status": "rejected", "reason": "no approval"},
-                                  cost_estimate=cost, approval_state="rejected")
-                return _error(403, "APPROVAL_REQUIRED", "Analyst approval required before any paid run")
-            action = store.save_action(
-                db_path, case_id, "live-test", store._digest(submitted),
-                {"status": submitted["status"], "request_id": submitted["request_id"],
-                 "status_url": submitted.get("status_url"),
-                 "submitted_at": submitted["submitted_at"],
-                 "observed_status": seen["status"],
-                 "cost_estimate_usd": cost},
-                cost_estimate=cost, approval_state="approved")
-            return action
-        # Spend caps are code law: checked first, approvals never override them.
+            return _live_run(case_id, case, body)
         cost = body.cost_estimate_usd if body.cost_estimate_usd is not None else _price_for(case["endpoint_id"])
-        spent = store.spend_total(db_path, case_id)
-        if spent + cost > SESSION_CAP_USD or spent + cost > DAY_CAP_USD:
+        verdict = decide_run(mode="record",
+                             pending_request_ids=[], key_present=True,
+                             spent=store.spend_total(db_path, case_id),
+                             session_cap=SESSION_CAP_USD, day_cap=DAY_CAP_USD, cost=cost,
+                             approved=store.approved_action_exists(db_path, case_id, "live-test"),
+                             status_checked=True)
+        if verdict["code"] == "SPEND_BLOCKED":
             store.save_action(db_path, case_id, "live-test", store._digest({"cost": cost}),
                               {"status": "blocked", "model_recommends": body.model_recommends},
                               cost_estimate=cost, approval_state="blocked")
-            return _error(403, "SPEND_BLOCKED",
-                          f"Cost {cost} exceeds caps (session {SESSION_CAP_USD}, day {DAY_CAP_USD})")
-        if not store.approved_action_exists(db_path, case_id, "live-test"):
+            return _error(403, "SPEND_BLOCKED", verdict["message"])
+        if verdict["code"] == "APPROVAL_REQUIRED":
             store.save_action(db_path, case_id, "live-test", store._digest({"cost": cost}),
                               {"status": "rejected", "reason": "no approval"},
                               cost_estimate=cost, approval_state="rejected")
-            return _error(403, "APPROVAL_REQUIRED", "Analyst approval required before any paid run")
+            return _error(403, "APPROVAL_REQUIRED", verdict["message"])
         action = store.save_action(db_path, case_id, "live-test", store._digest({"cost": cost}),
                                    {"status": "recorded"}, cost_estimate=cost,
                                    approval_state="approved")
+        return action
+
+    def _live_run(case_id: str, case: dict, body: LiveTestRequest):
+        inv = run_investigation(case)
+        pending = [q["request_id"] for q in inv["queue"]
+                   if q["status"] in ("IN_QUEUE", "IN_PROGRESS")]
+        cost = _price_for(case["endpoint_id"])
+        verdict = decide_run(mode="live", pending_request_ids=pending,
+                             key_present=bool(fal_live.api_key()),
+                             spent=store.spend_total(db_path, case_id),
+                             session_cap=SESSION_CAP_USD, day_cap=DAY_CAP_USD, cost=cost,
+                             approved=store.approved_action_exists(db_path, case_id, "live-test"),
+                             status_checked=body.status_checked)
+        if not verdict["allowed"]:
+            state = "blocked" if verdict["code"] == "SPEND_BLOCKED" else "rejected"
+            status = {"SPEND_BLOCKED": 403, "APPROVAL_REQUIRED": 403,
+                      "CHECK_STATUS_FIRST": 409, "LIVE_UNAVAILABLE": 503}[verdict["code"]]
+            store.save_action(db_path, case_id, "live-test", store._digest(verdict),
+                              {"status": state.lower(), "reason": verdict["code"]},
+                              cost_estimate=cost, approval_state=state)
+            return _error(status, verdict["code"], verdict["message"])
+        # Gates passed before any network: submit only on OK.
+        try:
+            submitted = fal_live.submit(case["endpoint_id"], case["payload"])
+            seen = fal_live.fetch_status(submitted["status_url"]) if submitted.get("status_url") else {"status": submitted["status"]}
+        except Exception as exc:
+            return _error(503, "LIVE_UNAVAILABLE", f"{type(exc).__name__}")
+        action = store.save_action(
+            db_path, case_id, "live-test", store._digest(submitted),
+            {"status": submitted["status"], "request_id": submitted["request_id"],
+             "status_url": submitted.get("status_url"),
+             "submitted_at": submitted["submitted_at"],
+             "observed_status": seen["status"],
+             "cost_estimate_usd": cost},
+            cost_estimate=cost, approval_state="approved")
         return action
 
     return app
