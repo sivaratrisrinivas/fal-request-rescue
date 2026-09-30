@@ -1,13 +1,37 @@
-"""FastAPI surface for ticket 01: health, case CRUD/import/export."""
+"""FastAPI surface: cases, evidence, investigate, disposition, approvals."""
+import json
+import os
+import pathlib
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import store
-from .investigate import run_investigation
-from .redact import redact_json, redact_text
+from . import llm, store
+from .engine import build_disposition
+from .investigate import ALLOWLIST, run_investigation
+from .redact import contains_secret, redact_json, redact_text
+
+SESSION_CAP_USD = float(os.environ.get("SESSION_CAP_USD", "2.0"))
+DAY_CAP_USD = float(os.environ.get("DAY_CAP_USD", "5.0"))
+
+_PRICING: dict | None = None
+
+
+def _price_for(endpoint_id: str) -> float:
+    global _PRICING
+    if _PRICING is None:
+        _PRICING = {}
+        try:
+            doc = json.loads((pathlib.Path(__file__).resolve().parents[2]
+                              / "schemas" / "pricing.json").read_text())
+            for e in doc.get("endpoints", []):
+                _PRICING[e["endpoint_id"]] = float(e.get("price_usd_per_run", 0.01))
+        except (OSError, ValueError, KeyError):
+            pass
+    return _PRICING.get(endpoint_id, 0.01)
 
 
 class CaseCreate(BaseModel):
@@ -24,6 +48,20 @@ class EvidenceAttach(BaseModel):
     kind: str
     source: str = "analyst"
     content: dict = Field(default_factory=dict)
+
+
+class DispositionRequest(BaseModel):
+    use_llm: bool = False
+
+
+class ApproveRequest(BaseModel):
+    action_type: str
+    actor: str = "analyst"
+
+
+class LiveTestRequest(BaseModel):
+    cost_estimate_usd: float | None = None
+    model_recommends: bool = False
 
 
 def _redact_inputs(report: str, payload, response_body):
@@ -151,6 +189,86 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         if case is None:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
         return run_investigation(case)
+
+    @app.post("/cases/{case_id}/disposition")
+    def disposition(case_id: str, body: DispositionRequest):
+        case = store.get_case(db_path, case_id)
+        if case is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        inv = run_investigation(case)
+        out = build_disposition(case, inv)
+        if body.use_llm:
+            # Redacted summary only: verdicts and codes, never raw payload text.
+            summary = {"endpoint_id": case["endpoint_id"], "schema_version": case["schema_version"],
+                       "schema_error_codes": [e["code"] for e in inv["schema_errors"]],
+                       "queue_verdicts": [q["verdict"] for q in inv["queue"]],
+                       "webhook_verified": inv["webhook"]["verified"]}
+            try:
+                draft = llm.draft_disposition(summary)
+            except llm.ToolRejected as exc:
+                return _error(422, "TOOL_REJECTED", str(exc))
+            except RuntimeError as exc:
+                return _error(503, "LLM_UNAVAILABLE", str(exc))
+            except ValueError as exc:
+                return _error(422, "LLM_INVALID", str(exc))
+            except Exception as exc:
+                # Transport/rate-limit failures (e.g. free-tier 429): the
+                # deterministic engine already decided; report, don't 500.
+                return _error(503, "LLM_UNAVAILABLE", f"{type(exc).__name__}")
+            if contains_secret(json.dumps(draft.get("missing", []))):
+                return _error(422, "LLM_INVALID", "Draft contains secret-like text")
+            # Enforce here, not only in the adapter: a substituted or
+            # compromised adapter must not smuggle in an outside tool.
+            if draft.get("tool") not in ALLOWLIST:
+                return _error(422, "TOOL_REJECTED",
+                              f"tool '{draft.get('tool')}' outside allowlist")
+            if draft.get("disposition") not in ("correction", "need-information", "escalation"):
+                return _error(422, "LLM_INVALID",
+                              f"bad disposition '{draft.get('disposition')}'")
+            if out["disposition"] == "need-information" and draft.get("missing"):
+                out["missing"] = [str(m) for m in draft["missing"]]
+        saved_findings = store.save_findings(db_path, case_id, inv["findings"])
+        store.save_action(db_path, case_id, "disposition", store._digest(inv),
+                          {"disposition": out["disposition"]})
+        return {"case_id": case_id, **out, "findings": saved_findings,
+                "diagnostics_used": inv["diagnostics_used"]}
+
+    @app.get("/cases/{case_id}/history")
+    def history(case_id: str):
+        hist = store.history(db_path, case_id)
+        if hist is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        return hist
+
+    @app.post("/cases/{case_id}/approve")
+    def approve(case_id: str, body: ApproveRequest):
+        if store.get_case(db_path, case_id) is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        return store.approve_action(db_path, case_id, body.action_type, body.actor)
+
+    @app.post("/cases/{case_id}/live-test")
+    def live_test(case_id: str, body: LiveTestRequest):
+        case = store.get_case(db_path, case_id)
+        if case is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        # Spend caps are code law: checked first, approvals never override them.
+        cost = body.cost_estimate_usd if body.cost_estimate_usd is not None else _price_for(case["endpoint_id"])
+        spent = store.spend_total(db_path, case_id)
+        if spent + cost > SESSION_CAP_USD or spent + cost > DAY_CAP_USD:
+            store.save_action(db_path, case_id, "live-test", store._digest({"cost": cost}),
+                              {"status": "blocked", "model_recommends": body.model_recommends},
+                              cost_estimate=cost, approval_state="blocked")
+            return _error(403, "SPEND_BLOCKED",
+                          f"Cost {cost} exceeds caps (session {SESSION_CAP_USD}, day {DAY_CAP_USD})")
+        if not store.approved_action_exists(db_path, case_id, "live-test"):
+            store.save_action(db_path, case_id, "live-test", store._digest({"cost": cost}),
+                              {"status": "rejected", "reason": "no approval"},
+                              cost_estimate=cost, approval_state="rejected")
+            return _error(403, "APPROVAL_REQUIRED", "Analyst approval required before any paid run")
+        action = store.save_action(db_path, case_id, "live-test", store._digest({"cost": cost}),
+                                   {"status": "recorded"}, cost_estimate=cost,
+                                   approval_state="approved")
+        return action
 
     return app
 

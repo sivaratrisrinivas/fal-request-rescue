@@ -56,6 +56,25 @@ def init_db(db_path: str) -> None:
                 timestamp TEXT NOT NULL,
                 details TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS findings (
+                id TEXT PRIMARY KEY,
+                case_id TEXT NOT NULL REFERENCES cases(id),
+                category TEXT NOT NULL,
+                observed_fact TEXT NOT NULL,
+                source_evidence_ids TEXT NOT NULL,
+                confidence TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS actions (
+                id TEXT PRIMARY KEY,
+                case_id TEXT NOT NULL REFERENCES cases(id),
+                action_type TEXT NOT NULL,
+                input_digest TEXT NOT NULL,
+                approval_state TEXT NOT NULL DEFAULT 'pending',
+                result TEXT NOT NULL,
+                cost_estimate REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
             """
         )
         conn.commit()
@@ -154,6 +173,133 @@ def add_evidence(db_path: str, case_id: str, kind: str, source: str, content) ->
         return ev
     finally:
         conn.close()
+
+
+def save_findings(db_path: str, case_id: str, findings: list) -> list:
+    conn = _connect(db_path)
+    try:
+        saved = []
+        for f in findings:
+            fid = uuid.uuid4().hex[:12]
+            conn.execute(
+                "INSERT INTO findings (id, case_id, category, observed_fact,"
+                " source_evidence_ids, confidence, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (fid, case_id, f["category"], f["observed_fact"],
+                 json.dumps(f.get("source_evidence_ids", [])), f.get("confidence", "medium"), _now()),
+            )
+            saved.append({**f, "id": fid})
+        _audit(conn, case_id, "tool", "findings.recorded", {"count": len(saved)})
+        conn.commit()
+        return saved
+    finally:
+        conn.close()
+
+
+def save_action(db_path: str, case_id: str, action_type: str, input_digest: str,
+                result: dict, cost_estimate: float = 0.0,
+                approval_state: str = "pending") -> dict:
+    conn = _connect(db_path)
+    try:
+        aid = uuid.uuid4().hex[:12]
+        conn.execute(
+            "INSERT INTO actions (id, case_id, action_type, input_digest,"
+            " approval_state, result, cost_estimate, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (aid, case_id, action_type, input_digest, approval_state,
+             json.dumps(result), cost_estimate, _now()),
+        )
+        _audit(conn, case_id, "tool", f"action.{approval_state}",
+               {"action_type": action_type, "action_id": aid})
+        conn.commit()
+        return {"id": aid, "action_type": action_type, "input_digest": input_digest,
+                "approval_state": approval_state, "result": result, "cost_estimate": cost_estimate}
+    finally:
+        conn.close()
+
+
+def approve_action(db_path: str, case_id: str, action_type: str, actor: str) -> dict | None:
+    conn = _connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM actions WHERE case_id = ? AND action_type = ?"
+            " AND approval_state = 'pending' ORDER BY created_at DESC LIMIT 1",
+            (case_id, action_type),
+        ).fetchone()
+        if row is None:
+            # Record the approval itself so the trail shows who approved what.
+            aid = uuid.uuid4().hex[:12]
+            conn.execute(
+                "INSERT INTO actions (id, case_id, action_type, input_digest,"
+                " approval_state, result, cost_estimate, created_at)"
+                " VALUES (?, ?, ?, ?, 'approved', ?, 0, ?)",
+                (aid, case_id, action_type, "approval", json.dumps({"by": actor}), _now()),
+            )
+        else:
+            aid = row["id"]
+            conn.execute("UPDATE actions SET approval_state = 'approved' WHERE id = ?", (aid,))
+        _audit(conn, case_id, actor, "action.approved",
+               {"action_type": action_type, "action_id": aid})
+        conn.commit()
+        saved = conn.execute("SELECT * FROM actions WHERE id = ?", (aid,)).fetchone()
+        return {"id": saved["id"], "action_type": saved["action_type"],
+                "approval_state": saved["approval_state"],
+                "result": json.loads(saved["result"]), "cost_estimate": saved["cost_estimate"]}
+    finally:
+        conn.close()
+
+
+def approved_action_exists(db_path: str, case_id: str, action_type: str) -> bool:
+    conn = _connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM actions WHERE case_id = ? AND action_type = ?"
+            " AND approval_state = 'approved' LIMIT 1",
+            (case_id, action_type),
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def spend_total(db_path: str, case_id: str) -> float:
+    """Sum of non-blocked live-test cost estimates: the per-session meter."""
+    conn = _connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(cost_estimate), 0) AS total FROM actions"
+            " WHERE case_id = ? AND action_type = 'live-test' AND approval_state != 'blocked'",
+            (case_id,),
+        ).fetchone()
+        return float(row["total"])
+    finally:
+        conn.close()
+
+
+def history(db_path: str, case_id: str) -> dict | None:
+    case = get_case(db_path, case_id)
+    if case is None:
+        return None
+    conn = _connect(db_path)
+    try:
+        findings = [dict(r) for r in conn.execute(
+            "SELECT id, category, observed_fact, source_evidence_ids, confidence"
+            " FROM findings WHERE case_id = ? ORDER BY created_at", (case_id,)).fetchall()]
+        for f in findings:
+            f["source_evidence_ids"] = json.loads(f["source_evidence_ids"])
+        actions = [dict(r) for r in conn.execute(
+            "SELECT id, action_type, input_digest, approval_state, result, cost_estimate"
+            " FROM actions WHERE case_id = ? ORDER BY created_at", (case_id,)).fetchall()]
+        for a in actions:
+            a["result"] = json.loads(a["result"])
+        audit = [dict(r) for r in conn.execute(
+            "SELECT actor, event_type, timestamp, details FROM audit_events"
+            " WHERE case_id = ? ORDER BY timestamp", (case_id,)).fetchall()]
+    finally:
+        conn.close()
+    return {"evidence": [{"id": e["id"], "kind": e["kind"], "digest": e["digest"]}
+                         for e in case["evidence"]],
+            "findings": findings, "actions": actions, "audit": audit}
 
 
 def list_cases(db_path: str, page: int = 1, page_size: int = 20) -> dict:
