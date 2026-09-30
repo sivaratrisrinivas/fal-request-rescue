@@ -71,6 +71,11 @@ const ANSWER_TITLE: Record<string, string> = {
   "need-information": "We need one thing first.",
   escalation: "Engineering needs this.",
 };
+const ANSWER_STATE: Record<string, string> = {
+  correction: "fix proposed",
+  "need-information": "waiting on customer",
+  escalation: "with engineering",
+};
 const ANSWER_BUTTON: Record<string, string> = {
   correction: "Approve fix",
   "need-information": "Send request",
@@ -101,23 +106,39 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 function Diff({ before, after }: { before: Record<string, unknown>; after: Record<string, unknown> }) {
   const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+  const cell: React.CSSProperties = { padding: "8px 10px", textAlign: "left", verticalAlign: "top" };
   return (
-    <table>
-      <thead><tr><th>field</th><th>before</th><th>after</th></tr></thead>
+    <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 14, background: "#fff",
+      border: "1px solid #e7e0d2", borderRadius: 10, overflow: "hidden" }}>
+      <thead><tr style={{ background: "#f5f0e6" }}>
+        <th style={cell}>field</th><th style={cell}>before</th><th style={cell}>after</th>
+      </tr></thead>
       <tbody>
         {keys.map((k) => {
           const changed = JSON.stringify(before[k]) !== JSON.stringify(after[k]);
           return (
-            <tr key={k} style={changed ? { background: "#fff8dc" } : undefined}>
-              <td><code>{k}</code></td>
-              <td><code>{JSON.stringify(before[k])}</code></td>
-              <td><code>{JSON.stringify(after[k])}</code></td>
+            <tr key={k} style={changed ? { background: "#fef3c7" } : undefined}>
+              <td style={cell}><code>{k}</code></td>
+              <td style={{ ...cell, overflowWrap: "anywhere" }}><code>{JSON.stringify(before[k])}</code></td>
+              <td style={{ ...cell, overflowWrap: "anywhere" }}><code>{JSON.stringify(after[k])}</code></td>
             </tr>
           );
         })}
       </tbody>
     </table>
   );
+}
+
+function Card({ children }: { children: React.ReactNode }) {
+  return <div style={{ background: "#fff", border: "1px solid #e7e0d2", borderRadius: 10,
+    padding: "12px 14px", marginBottom: 8 }}>{children}</div>;
+}
+
+function shortTime(iso: string) {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, {
+    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
 }
 
 function Detail({ id, back }: { id: string; back: () => void }) {
@@ -225,7 +246,10 @@ function Detail({ id, back }: { id: string; back: () => void }) {
               : disp.disposition === "correction"
                 ? <p>The request breaks the expected format. Send this fix?</p>
                 : <p>This won't clear with a retry or a tweak. Hand it to engineering?</p>}
-            <button onClick={decide} style={{ fontSize: 17, padding: "12px 24px" }}>
+            <button onClick={decide} style={{
+              fontSize: 17, padding: "12px 26px", background: "#9a3412", color: "#fff",
+              border: "none", borderRadius: 10, cursor: "pointer",
+            }}>
               {disp ? ANSWER_BUTTON[disp.disposition] : ""}
             </button>
           </div>
@@ -233,12 +257,12 @@ function Detail({ id, back }: { id: string; back: () => void }) {
 
       <h2>Why we think so</h2>
       {inv.findings.map((f, i) => (
-        <div key={i} style={{ background: "#fff", border: "1px solid #eee", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+        <Card key={i}>
           <div>{f.observed_fact}</div>
-          <div style={{ fontSize: 13, color: "#777" }}>
+          <div style={{ fontSize: 13, color: "#57534e" }}>
             Seen in {WHERE[f.category] ?? "the case record"} · sure: {f.confidence}
           </div>
-        </div>
+        </Card>
       ))}
 
       {disp?.corrected_payload && <>
@@ -246,7 +270,7 @@ function Detail({ id, back }: { id: string; back: () => void }) {
         <Diff before={detail.payload} after={disp.corrected_payload} />
       </>}
       {disp?.packet && <details><summary>Escalation packet for engineering</summary>
-        <pre>{JSON.stringify(disp.packet, null, 2)}</pre></details>}
+        <Card><pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12 }}>{JSON.stringify(disp.packet, null, 2)}</pre></Card></details>}
 
       <h2>Replay / live</h2>
       <button onClick={runReplay}>Run replay</button>{" "}
@@ -254,16 +278,16 @@ function Detail({ id, back }: { id: string; back: () => void }) {
       {replay && <p><span style={badge}>{replay.badge}</span> source <code>{replay.fixture_source}</code> → {replay.disposition} ({replay.submitted_at} – {replay.completed_at})</p>}
       {liveMsg && <p>{liveMsg}</p>}
 
-      <h2>Allowed values</h2>
-      {inv.schema_errors.filter((e) => e.allowed && e.allowed.length > 0).map((e, i) => (
-        <p key={i}><code>{e.field}</code>{" "}
-          {e.allowed!.map((a) => (
-            <span key={String(a)} style={{ ...badge, marginRight: 6 }}>{String(a)}</span>
-          ))}
-        </p>
-      ))}
-      {inv.schema_errors.filter((e) => e.allowed && e.allowed.length > 0).length === 0 &&
-        <p style={{ color: "#777" }}>No fixed options involved — nothing to pick from.</p>}
+      {inv.schema_errors.some((e) => e.allowed && e.allowed.length > 0) && <>
+        <h2>Allowed values</h2>
+        {inv.schema_errors.filter((e) => e.allowed && e.allowed.length > 0).map((e, i) => (
+          <p key={i}><code>{e.field}</code>{" "}
+            {e.allowed!.map((a) => (
+              <span key={String(a)} style={{ ...badge, marginRight: 6 }}>{String(a)}</span>
+            ))}
+          </p>
+        ))}
+      </>}
 
       <h2>Show me why</h2>
       <details><summary>Queue and callback state</summary>
@@ -271,14 +295,16 @@ function Detail({ id, back }: { id: string; back: () => void }) {
         {inv.webhook.present && <p>{inv.webhook.reason}</p>}
       </details>
       <details><summary>Timeline ({audit.length} events)</summary>
-        <ul>{audit.map((a, i) => <li key={i}>{a.timestamp} — {a.actor} — {a.event_type}</li>)}</ul>
+        <ul>{audit.map((a, i) => <li key={i}>{shortTime(a.timestamp)} — {a.actor} — {a.event_type}</li>)}</ul>
       </details>
       <details><summary>Export for engineering</summary>
         <p><button onClick={downloadExport}>Download case JSON</button></p>
       </details>
 
       <h2>Customer draft (preview — approval required before sending)</h2>
-      {draft ? <pre>{draft}</pre> : <p>No draft yet.</p>}
+      {draft
+        ? <Card><pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 13 }}>{draft}</pre></Card>
+        : <p>No draft yet.</p>}
 
       <h2>More approvals</h2>
       <label>Actor <input value={actor} onChange={(e) => setActor(e.target.value)} /></label>{" "}
@@ -331,20 +357,28 @@ function App() {
       <main style={{ fontFamily: "Georgia, serif", maxWidth: 680, margin: "0 auto", padding: "24px 20px 80px" }}>
         <p style={{ fontFamily: "system-ui", fontSize: 14, color: "#57534e" }}>{cases.length} waiting.</p>
         <h1>What needs you most?</h1>
-        {error && <p role="alert" style={{ color: "crimson" }}>{error}</p>}
-        {cases.map((c) => (
-          <p key={c.id} style={{ fontFamily: "system-ui", fontSize: 15 }}>
-            <button onClick={() => setSelected(c.id)}
-              style={{ background: "none", border: "none", color: "#9a3412", textDecoration: "underline", cursor: "pointer", fontSize: 15, padding: 0 }}>
-              {c.report ? c.report.slice(0, 70) : "Untitled report"}
-            </button>{" "}— {c.disposition ?? "not read yet"}
+        {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
+        {cases.length === 0 && !error && (
+          <p style={{ fontFamily: "system-ui", fontSize: 15, color: "#57534e" }}>
+            Nothing waiting. Import a fixture through the API or add a case below.
           </p>
+        )}
+        {cases.map((c) => (
+          <div key={c.id} style={{ marginBottom: 14 }}>
+            <button onClick={() => setSelected(c.id)}
+              style={{ background: "none", border: "none", color: "#9a3412", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", fontSize: 16, padding: 0, textAlign: "left", fontFamily: "Georgia, serif" }}>
+              {c.report ? c.report.slice(0, 70) : "Untitled report"}
+            </button>
+            <div style={{ fontFamily: "system-ui", fontSize: 13, color: "#57534e", marginTop: 2 }}>
+              {c.disposition ? ANSWER_STATE[c.disposition] ?? c.disposition : "not read yet"}
+            </div>
+          </div>
         ))}
         <p style={{ fontFamily: "system-ui", fontSize: 14, color: "#57534e" }}>
           Practice room — nothing here touches real traffic.
         </p>
         <details>
-          <summary style={{ fontFamily: "system-ui", fontSize: 14, cursor: "pointer" }}>＋ New case</summary>
+          <summary style={{ fontFamily: "system-ui", fontSize: 14, cursor: "pointer" }}>New case</summary>
           <form onSubmit={createCase} style={{ marginTop: 8 }}>
             <input value={endpointId} onChange={(e) => setEndpointId(e.target.value)} aria-label="endpoint id" style={{ width: "100%", marginBottom: 8 }} />
             <textarea value={report} onChange={(e) => setReport(e.target.value)} placeholder="Customer report (sanitized — no keys)" rows={3} style={{ width: "100%" }} />
