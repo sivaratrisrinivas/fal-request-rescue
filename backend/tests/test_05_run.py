@@ -4,7 +4,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app import local_live
+from app import openrouter_live
 from app.main import create_app
 
 
@@ -54,7 +54,7 @@ def test_import_origin_persists_as_fixture_source(client):
     assert body["fixture_source"] == "fixture:case-02-invalid-enum.json"
 
 
-def test_live_without_runner_is_unavailable(client):
+def test_live_without_key_is_unavailable(client):
     cid = create(client, payload={"prompt": "x"})
     approve_live(client, cid)
     r = client.post(f"/cases/{cid}/live-test", json={"mode": "live"})
@@ -63,20 +63,29 @@ def test_live_without_runner_is_unavailable(client):
 
 
 def test_live_with_mocked_runner_records_run(client, monkeypatch):
-    monkeypatch.setattr(local_live, "submit", lambda endpoint_id, payload: {
-        "request_id": "req-live-1", "status": "COMPLETED",
-        "status_url": None,
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(openrouter_live, "submit", lambda endpoint_id, payload: {
+        "request_id": "or-gen-1", "status": "COMPLETED",
         "submitted_at": "2026-09-30T00:00:00Z",
         "completed_at": "2026-09-30T00:00:01Z",
-        "response_preview": "a lighthouse at dusk"})
-    monkeypatch.setattr(local_live, "fetch_status", lambda status_url: {"status": "COMPLETED"})
+        "response_preview": "{\"render\": \"a lighthouse at dusk\"}"})
+    monkeypatch.setattr(openrouter_live, "fetch_status", lambda status_url: {"status": "COMPLETED"})
     cid = create(client, payload={"prompt": "x"})
     approve_live(client, cid)
     r = client.post(f"/cases/{cid}/live-test", json={"mode": "live"})
     assert r.status_code == 200, r.text
     result = r.json()["result"]
-    assert result["request_id"] == "req-live-1"
+    assert result["request_id"] == "or-gen-1"
     assert result["status"] and result["submitted_at"] and result["cost_estimate_usd"] == 0.0
+
+
+def test_exhausted_quota_blocks_before_approval(client, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("DAILY_QUOTA", "0")
+    cid = create(client, payload={"prompt": "x"})
+    r = client.post(f"/cases/{cid}/live-test", json={"mode": "live"})
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "QUOTA_EXHAUSTED"
 
 
 def test_timeout_with_pending_id_checks_status_first(client):

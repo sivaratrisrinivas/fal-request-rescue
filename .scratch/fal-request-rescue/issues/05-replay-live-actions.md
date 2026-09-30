@@ -23,6 +23,11 @@ Update 2026-10-01: fal queue adapter swapped for a local Ollama runner
 (free, open-source, no key, $0; see ADR-0003). Same gates, same record shape,
 cost 0.0. Request-status now reads recorded runs first, labeled mock otherwise.
 
+Update 2026-10-01 (later): Ollama dropped for OpenRouter's free tier (see
+ADR-0004) — the key was already held, quota is real (50/day, enforced in
+code), and generation IDs come back real. Same gates plus quota, same record
+shape, cost 0.0.
+
 - [ ] Replay executes fixtures end-to-end with badge and fixture source; no credentials required
 - [ ] Live adapter (server-side only) requires explicit approval plus per-session and per-day caps; one cheap permitted test records request ID, timestamps, status, cost estimate
 - [ ] Client timeout with existing request ID checks status before any new run is suggested

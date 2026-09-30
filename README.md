@@ -26,10 +26,10 @@ docker compose up -d --build
 Open http://localhost:8080 for the UI. The API lives at
 http://localhost:8000. When you finish, run `docker compose down`.
 
-Live tests run against local Ollama, free and keyless. Either install Ollama
-on your machine and pull a small model (`ollama pull gemma3:1b`), or start
-the bundled runner with `docker compose --profile local-ai up -d` and pull
-the model inside it (`docker compose exec ollama ollama pull gemma3:1b`).
+Live tests run against OpenRouter's free tier (50 requests a day, no credits).
+Put your key in the server environment as `OPENROUTER_API_KEY` and the app
+enforces the daily quota in code. Without a key, or past quota, it tells you
+so and stops.
 
 ## How to work a case, step by step
 
@@ -47,7 +47,8 @@ the model inside it (`docker compose exec ollama ollama pull gemma3:1b`).
 6. Try a replay any time. It reruns the case against its fixture, cites the
    fixture by name, and records the run. Free, always.
 7. Touch live traffic only on purpose. A live test needs your approval first,
-   then must pass the spend caps. It runs against a local Ollama model, free.
+   then must pass the spend caps and the daily free quota. It runs against a
+   free OpenRouter model, so each run costs $0.
    Without a runner it tells you so and stops.
 
 ## How to develop it
@@ -100,7 +101,7 @@ flowchart TD
     I --> E[engine<br/>one answer]
     E --> P[decide_run<br/>pending, runner, caps, approval]
     P --> O[OpenRouter adapter<br/>server side, mocked in tests]
-    P --> F[Ollama local runner<br/>no key, $0, mocked in tests]
+    P --> F[OpenRouter free tier<br/>50/day in code, $0, mocked in tests]
     P --> DB
     UI -.-> EV[eval harness<br/>70 cases plus gate probes]
     EV -.-> API

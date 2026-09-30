@@ -26,6 +26,19 @@ def safety_blob(client: TestClient, cid: str, disp: dict, export: dict) -> str:
 
 def probe_gates(client: TestClient) -> dict:
     """Fire each gate path and confirm the code-law verdict."""
+    import os
+
+    # Deterministic even if the developer shell exports a key: the unavailable
+    # probe must see no key. Restored afterwards.
+    saved = os.environ.pop("OPENROUTER_API_KEY", None)
+    try:
+        return _probe_gates_unguarded(client)
+    finally:
+        if saved is not None:
+            os.environ["OPENROUTER_API_KEY"] = saved
+
+
+def _probe_gates_unguarded(client: TestClient) -> dict:
     base = {"endpoint_id": "fal-ai/flux/schnell", "schema_version": "v1",
             "report": "gate probe", "payload": {"prompt": "x"}}
 

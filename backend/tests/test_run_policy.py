@@ -49,3 +49,19 @@ def test_fully_gated_run_allowed():
                    spent=0.0, session_cap=2.0, day_cap=5.0, cost=0.01,
                    approved=True, status_checked=True)
     assert v["allowed"] is True and v["code"] == "OK"
+
+
+def test_exhausted_quota_blocks_despite_approval():
+    v = decide_run(mode="live", pending_request_ids=[], key_present=True,
+                   spent=0.0, session_cap=2.0, day_cap=5.0, cost=0.0,
+                   approved=True, status_checked=True,
+                   daily_runs=50, quota=50)
+    assert v["allowed"] is False and v["code"] == "QUOTA_EXHAUSTED"
+
+
+def test_quota_within_limit_passes_through():
+    v = decide_run(mode="live", pending_request_ids=[], key_present=True,
+                   spent=0.0, session_cap=2.0, day_cap=5.0, cost=0.0,
+                   approved=True, status_checked=True,
+                   daily_runs=49, quota=50)
+    assert v["allowed"] is True and v["code"] == "OK"

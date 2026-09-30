@@ -8,7 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import llm, local_live, store
+from . import llm, openrouter_live, store
+from .run_policy import daily_quota, decide_run
 from .engine import build_disposition, customer_draft
 from .investigate import ALLOWLIST, SCHEMA_DIR, run_investigation
 from .run_policy import decide_run
@@ -347,23 +348,25 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         # cost is $0, so caps meter abuse, not money.
         cost = 0.0
         verdict = decide_run(mode="live", pending_request_ids=pending,
-                             key_present=True,
+                             key_present=bool(openrouter_live.api_key()),
                              spent=store.spend_total(db_path, case_id),
                              session_cap=SESSION_CAP_USD, day_cap=DAY_CAP_USD, cost=cost,
                              approved=store.approved_action_exists(db_path, case_id, "live-test"),
-                             status_checked=body.status_checked)
+                             status_checked=body.status_checked,
+                             daily_runs=store.live_runs_today(db_path),
+                             quota=daily_quota())
         if not verdict["allowed"]:
-            state = "blocked" if verdict["code"] == "SPEND_BLOCKED" else "rejected"
-            status = {"SPEND_BLOCKED": 403, "APPROVAL_REQUIRED": 403,
+            state = "blocked" if verdict["code"] in ("SPEND_BLOCKED", "QUOTA_EXHAUSTED") else "rejected"
+            status = {"SPEND_BLOCKED": 403, "QUOTA_EXHAUSTED": 403, "APPROVAL_REQUIRED": 403,
                       "CHECK_STATUS_FIRST": 409, "LIVE_UNAVAILABLE": 503}[verdict["code"]]
             store.save_action(db_path, case_id, "live-test", store._digest(verdict),
-                              {"status": state.lower(), "reason": verdict["code"]},
+                              {"status": state, "reason": verdict["code"]},
                               cost_estimate=cost, approval_state=state)
             return _error(status, verdict["code"], verdict["message"])
         # Gates passed before any network: submit only on OK.
         try:
-            submitted = local_live.submit(case["endpoint_id"], case["payload"])
-            seen = local_live.fetch_status(submitted.get("status_url"))
+            submitted = openrouter_live.submit(case["endpoint_id"], case["payload"])
+            seen = openrouter_live.fetch_status(submitted.get("status_url"))
         except Exception as exc:
             return _error(503, "LIVE_UNAVAILABLE", str(exc))
         action = store.save_action(

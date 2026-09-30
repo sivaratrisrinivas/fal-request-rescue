@@ -2,9 +2,14 @@
 
 Pure decisions — no store, no network, no clock. Routes gather inputs, call
 `decide_run`, then persist the outcome and adapt the verdict to HTTP.
-Gate order is code law: pending-status → key → spend caps → approval.
+Gate order is code law: pending-status → key → spend caps → daily quota → approval.
 """
+import os
 from dataclasses import dataclass
+
+
+def daily_quota() -> int:
+    return int(os.environ.get("DAILY_QUOTA", "50"))
 
 
 @dataclass(frozen=True)
@@ -19,7 +24,8 @@ class Verdict:
 
 def decide_run(*, mode: str, pending_request_ids: list, key_present: bool,
                spent: float, session_cap: float, day_cap: float, cost: float,
-               approved: bool, status_checked: bool) -> dict:
+               approved: bool, status_checked: bool,
+               daily_runs: int = 0, quota: int = 50) -> dict:
     if mode == "replay":
         return Verdict(True, "OK", "Replay needs no approval or spend.").as_dict()
     if pending_request_ids and not status_checked:
@@ -32,6 +38,9 @@ def decide_run(*, mode: str, pending_request_ids: list, key_present: bool,
     if spent + cost > session_cap or spent + cost > day_cap:
         return Verdict(False, "SPEND_BLOCKED",
                        f"Cost {cost} exceeds caps (session {session_cap}, day {day_cap}).").as_dict()
+    if daily_runs >= quota:
+        return Verdict(False, "QUOTA_EXHAUSTED",
+                       f"Daily free quota used ({daily_runs}/{quota}) — retry tomorrow.").as_dict()
     if not approved:
         return Verdict(False, "APPROVAL_REQUIRED",
                        "Analyst approval required before any paid run.").as_dict()

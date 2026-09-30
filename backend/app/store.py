@@ -308,6 +308,19 @@ def history(db_path: str, case_id: str) -> dict | None:
             "findings": findings, "actions": actions, "audit": audit}
 
 
+def live_runs_today(db_path: str) -> int:
+    """Approved live runs since UTC midnight: the free-quota meter."""
+    conn = _connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM actions WHERE action_type = 'live-test'"
+            " AND approval_state = 'approved'"
+            " AND substr(created_at, 1, 10) = date('now')").fetchone()
+        return int(row["n"])
+    finally:
+        conn.close()
+
+
 def latest_disposition(db_path: str, case_id: str) -> str | None:
     conn = _connect(db_path)
     try:

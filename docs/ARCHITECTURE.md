@@ -12,7 +12,8 @@ escalation packet), with human approval on paid runs and customer text.
   browser, or code execution); `engine` decides the single disposition and
   renders deterministic customer drafts; `llm` is a server-side OpenRouter
   adapter (temp 0, JSON mode, draft re-validated in the route); `fal_live` is
-  the server-side local runner over Ollama (free, no key, $0 per run); `policy` classifies
+  the server-side live executor over OpenRouter's free tier ($0 per run, daily
+  quota enforced in code); `policy` classifies
   retryable errors with attempt caps; `store` is SQLite (cases, evidence,
   findings, actions, audit events).
 - `frontend` (React/TS, Bun toolchain, nginx in deploy): inbox + case detail
