@@ -10,7 +10,7 @@ from app.main import create_app
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:9")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     return TestClient(create_app(db_path=str(tmp_path / "t05.db")))
 
 
