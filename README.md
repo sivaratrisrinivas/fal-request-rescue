@@ -74,6 +74,25 @@ The bar is four legs. Starter cases green. No secrets anywhere stored or
 shown. Nine of ten supported held-out answers right. Spend, status, and key
 gates all fire. Results land in `eval/REPORT.md`.
 
+## How it fits together
+
+```mermaid
+flowchart TD
+    A[Analyst] --> UI[React UI<br/>waiting strip, proof cards, one decision]
+    UI --> API[FastAPI]
+    API --> R[redact<br/>before save, before model send]
+    R --> DB[(SQLite<br/>cases, evidence, findings, actions)]
+    API --> I[investigate<br/>schema, queue, webhook, allowlist]
+    I --> SCH[pinned schemas]
+    I --> E[engine<br/>one answer]
+    E --> P[decide_run<br/>pending, key, caps, approval]
+    P --> O[OpenRouter adapter<br/>server side, mocked in tests]
+    P --> F[fal queue adapter<br/>key gated, mocked in tests]
+    P --> DB
+    UI -.-> EV[eval harness<br/>70 cases plus gate probes]
+    EV -.-> API
+```
+
 ## Where things live
 
 - `backend/app` holds the API, the checks, the answer engine, and the SQLite
