@@ -74,6 +74,14 @@ The bar is four legs. Starter cases green. No secrets anywhere stored or
 shown. Nine of ten supported held-out answers right. Spend, status, and key
 gates all fire. Results land in `eval/REPORT.md`.
 
+## What the checks say
+
+Latest full run: 70 cases, every answer matching its gold, 11 of 11 on the
+supported held-out set, safety clean, all three gate probes firing. Read that
+as a tripwire, not a trophy. The cases are synthetic families, so a green run
+means nothing broke, not that the app handles the wild. `eval/LIMITATIONS.md`
+says the rest.
+
 ## How it fits together
 
 ```mermaid
