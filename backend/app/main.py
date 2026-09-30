@@ -236,10 +236,10 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             if out["disposition"] == "need-information" and draft.get("missing"):
                 out["missing"] = [str(m) for m in draft["missing"]]
         saved_findings = store.save_findings(db_path, case_id, inv["findings"])
-        store.save_action(db_path, case_id, "disposition", store._digest(inv),
-                          {"disposition": out["disposition"]})
-        return {"case_id": case_id, **out, "findings": saved_findings,
-                "diagnostics_used": inv["diagnostics_used"]}
+        doc = {**out, "findings": saved_findings,
+               "diagnostics_used": inv["diagnostics_used"]}
+        store.save_action(db_path, case_id, "disposition", store._digest(inv), doc)
+        return {"case_id": case_id, **doc}
 
     @app.get("/cases/{case_id}/history")
     def history(case_id: str):
@@ -247,6 +247,15 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         if hist is None:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
         return hist
+
+    @app.get("/cases/{case_id}/disposition")
+    def get_disposition(case_id: str):
+        if store.get_case(db_path, case_id) is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        doc = store.latest_disposition_doc(db_path, case_id)
+        if doc is None:
+            return _error(404, "NOT_FOUND", f"No disposition for case {case_id} yet")
+        return {"case_id": case_id, **doc}
 
     @app.get("/cases/{case_id}/customer-draft")
     def draft(case_id: str):

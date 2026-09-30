@@ -323,6 +323,21 @@ def latest_disposition(db_path: str, case_id: str) -> str | None:
         conn.close()
 
 
+def latest_disposition_doc(db_path: str, case_id: str) -> dict | None:
+    conn = _connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT result FROM actions WHERE case_id = ? AND action_type = 'disposition'"
+            " ORDER BY created_at DESC LIMIT 1",
+            (case_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return json.loads(row["result"])
+    finally:
+        conn.close()
+
+
 def list_cases(db_path: str, page: int = 1, page_size: int = 20) -> dict:
     page = max(1, page)
     page_size = min(100, max(1, page_size))

@@ -58,6 +58,28 @@ type ReplayOut = {
 };
 
 const API = "";
+const WHERE: Record<string, string> = {
+  "schema-validation": "the request, checked against the expected format",
+  "queue-state": "the queue status",
+  "webhook-unverified": "the callback delivery",
+  "unknown-endpoint": "the endpoint name",
+  "stale-schema": "the pinned format version",
+};
+const ANSWER_TITLE: Record<string, string> = {
+  correction: "We can fix this.",
+  "need-information": "We need one thing first.",
+  escalation: "Engineering needs this.",
+};
+const ANSWER_BUTTON: Record<string, string> = {
+  correction: "Approve fix",
+  "need-information": "Send request",
+  escalation: "Escalate",
+};
+const CLOSED_BEAT: Record<string, [string, string]> = {
+  correction: ["Fixed — reply drafted.", "The correction is approved. The draft below is ready to send."],
+  "need-information": ["Waiting on customer — request sent.", "Nothing rerun. The case rests until they reply."],
+  escalation: ["With engineering.", "Packet attached. No fix promised to the customer."],
+};
 const badge: React.CSSProperties = { border: "1px solid #999", borderRadius: 4, padding: "2px 8px" };
 
 async function get<T>(path: string): Promise<T> {
@@ -106,6 +128,7 @@ function Detail({ id, back }: { id: string; back: () => void }) {
   const [actor, setActor] = useState("analyst");
   const [replay, setReplay] = useState<ReplayOut | null>(null);
   const [liveMsg, setLiveMsg] = useState<string | null>(null);
+  const [closed, setClosed] = useState<[string, string] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -114,13 +137,15 @@ function Detail({ id, back }: { id: string; back: () => void }) {
       const d = await get<CaseDetail>(`/cases/${id}`);
       setDetail(d);
       setInv(await post<InvestigateOut>(`/cases/${id}/investigate`, {}));
-      if (d.disposition) {
+      try {
+        setDisp(await get<DispositionOut>(`/cases/${id}/disposition`));
+      } catch {
         setDisp(await post<DispositionOut>(`/cases/${id}/disposition`, {}));
-        try {
-          const dr = await get<{ draft: string }>(`/cases/${id}/customer-draft`);
-          setDraft(dr.draft);
-        } catch { setDraft(null); }
       }
+      try {
+        const dr = await get<{ draft: string }>(`/cases/${id}/customer-draft`);
+        setDraft(dr.draft);
+      } catch { setDraft(null); }
       const h = await get<{ audit: AuditEvent[] }>(`/cases/${id}/history`);
       setAudit(h.audit);
     } catch (e) {
@@ -130,8 +155,11 @@ function Detail({ id, back }: { id: string; back: () => void }) {
 
   useEffect(() => { void load(); }, [id]);
 
-  async function runDisposition() {
-    await post(`/cases/${id}/disposition`, {});
+  async function decide() {
+    if (!disp) return;
+    const action = disp.disposition === "correction" ? "disposition" : "customer-text";
+    await post(`/cases/${id}/approve`, { action_type: action, actor });
+    setClosed(CLOSED_BEAT[disp.disposition]);
     await load();
   }
 
@@ -169,10 +197,43 @@ function Detail({ id, back }: { id: string; back: () => void }) {
       {detail.replay
         ? <span style={badge}>replay · synthetic fixture — not a live fal request</span>
         : <span style={{ ...badge, borderColor: "crimson" }}>live fal request</span>}
-      <h1>{detail.id}</h1>
-      <p>{detail.endpoint_id}@{detail.schema_version} — {detail.status} — disposition: {detail.disposition ?? "none yet"}</p>
-      <p>Origin: <code>{detail.origin}</code></p>
-      <p><strong>Report:</strong> {detail.report}</p>
+
+      <h1>{disp ? ANSWER_TITLE[disp.disposition] : "Reading the case…"}</h1>
+      <p><em>“{detail.report}”</em></p>
+
+      {closed
+        ? <div style={{ background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 12, padding: 18 }}>
+          <strong>{closed[0]}</strong><br /><small>{closed[1]}</small>
+        </div>
+        : (disp && <>
+          <div style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 12, padding: 18 }}>
+            {disp.disposition === "need-information"
+              ? <>Ask the customer for:<ul>{disp.missing?.map((m) => <li key={m}>{m}</li>)}</ul></>
+              : disp.disposition === "correction"
+                ? <p>The request breaks the expected format. Send this fix?</p>
+                : <p>This won't clear with a retry or a tweak. Hand it to engineering?</p>}
+            <button onClick={decide} style={{ fontSize: 17, padding: "12px 24px" }}>
+              {disp ? ANSWER_BUTTON[disp.disposition] : ""}
+            </button>
+          </div>
+        </>)}
+
+      <h2>Why we think so</h2>
+      {inv.findings.map((f, i) => (
+        <div key={i} style={{ background: "#fff", border: "1px solid #eee", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+          <div>{f.observed_fact}</div>
+          <div style={{ fontSize: 13, color: "#777" }}>
+            Seen in {WHERE[f.category] ?? "the case record"} · sure: {f.confidence}
+          </div>
+        </div>
+      ))}
+
+      {disp?.corrected_payload && <>
+        <h2>The change</h2>
+        <Diff before={detail.payload} after={disp.corrected_payload} />
+      </>}
+      {disp?.packet && <details><summary>Escalation packet for engineering</summary>
+        <pre>{JSON.stringify(disp.packet, null, 2)}</pre></details>}
 
       <h2>Replay / live</h2>
       <button onClick={runReplay}>Run replay</button>{" "}
@@ -180,44 +241,36 @@ function Detail({ id, back }: { id: string; back: () => void }) {
       {replay && <p><span style={badge}>{replay.badge}</span> source <code>{replay.fixture_source}</code> → {replay.disposition} ({replay.submitted_at} – {replay.completed_at})</p>}
       {liveMsg && <p>{liveMsg}</p>}
 
-      <h2>Schema errors ({inv.schema_errors.length})</h2>
-      <ul>{inv.schema_errors.map((e, i) => <li key={i}><code>{e.field}</code> [{e.code}] {e.message}</li>)}</ul>
+      <h2>Allowed values</h2>
+      {inv.schema_errors.filter((e) => e.allowed && e.allowed.length > 0).map((e, i) => (
+        <p key={i}><code>{e.field}</code>{" "}
+          {e.allowed!.map((a) => (
+            <span key={String(a)} style={{ ...badge, marginRight: 6 }}>{String(a)}</span>
+          ))}
+        </p>
+      ))}
+      {inv.schema_errors.filter((e) => e.allowed && e.allowed.length > 0).length === 0 &&
+        <p style={{ color: "#777" }}>No fixed options involved — nothing to pick from.</p>}
 
-      <h2>Queue</h2>
-      <ul>{inv.queue.map((q) => <li key={q.request_id}><code>{q.request_id}</code> {q.status}: {q.verdict}</li>)}</ul>
-      {inv.webhook.present && <p><strong>Webhook:</strong> verified={String(inv.webhook.verified)} — {inv.webhook.reason}</p>}
-
-      <h2>Diagnosis</h2>
-      {disp
-        ? <>
-          <p>{disp.disposition} (confidence {disp.confidence}) — {disp.uncertainty}</p>
-          {disp.missing && <ul>{disp.missing.map((m) => <li key={m}>{m}</li>)}</ul>}
-          {disp.corrected_payload && <Diff before={detail.payload} after={disp.corrected_payload} />}
-          {disp.packet && <details><summary>Escalation packet</summary><pre>{JSON.stringify(disp.packet, null, 2)}</pre></details>}
-        </>
-        : <button onClick={runDisposition}>Run disposition</button>}
-
-      <h2>Evidence</h2>
-      <ul>
-        {detail.evidence.map((e) => (
-          <li key={e.id}><code>{e.kind}</code> {e.source} <code>{e.digest.slice(0, 12)}</code>
-            <details><summary>content</summary><pre>{JSON.stringify(e.redacted_content, null, 2)}</pre></details>
-          </li>
-        ))}
-      </ul>
+      <h2>Show me why</h2>
+      <details><summary>Queue and callback state</summary>
+        <ul>{inv.queue.map((q) => <li key={q.request_id}>{q.status}: {q.verdict}</li>)}</ul>
+        {inv.webhook.present && <p>{inv.webhook.reason}</p>}
+      </details>
+      <details><summary>Timeline ({audit.length} events)</summary>
+        <ul>{audit.map((a, i) => <li key={i}>{a.timestamp} — {a.actor} — {a.event_type}</li>)}</ul>
+      </details>
+      <details><summary>Export for engineering</summary>
+        <p><button onClick={downloadExport}>Download case JSON</button></p>
+      </details>
 
       <h2>Customer draft (preview — approval required before sending)</h2>
-      {draft ? <pre>{draft}</pre> : <p>No draft yet — run disposition first.</p>}
+      {draft ? <pre>{draft}</pre> : <p>No draft yet.</p>}
 
-      <h2>Approvals</h2>
+      <h2>More approvals</h2>
       <label>Actor <input value={actor} onChange={(e) => setActor(e.target.value)} /></label>{" "}
-      <button onClick={() => approve("disposition")}>Approve correction</button>{" "}
       <button onClick={() => approve("live-test")}>Approve paid run</button>{" "}
-      <button onClick={() => approve("customer-text")}>Approve customer text</button>{" "}
       <button onClick={downloadExport}>Export case JSON</button>
-
-      <h2>Timeline</h2>
-      <ul>{audit.map((a, i) => <li key={i}>{a.timestamp} — {a.actor} — {a.event_type}</li>)}</ul>
     </main>
   );
 }
@@ -239,7 +292,10 @@ function App() {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    if (location.hash.startsWith("#case-")) setSelected(location.hash.slice(6));
+    void refresh();
+  }, []);
 
   async function createCase(e: React.FormEvent) {
     e.preventDefault();
