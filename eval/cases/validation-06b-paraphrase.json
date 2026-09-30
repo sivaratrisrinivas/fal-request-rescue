@@ -1,0 +1,18 @@
+{
+  "endpoint_id": "fal-ai/flux/schnell",
+  "schema_version": "v1",
+  "report": "Same failure seen on a second workspace, rephrased by the reporter: Customer says image looks wrong but gave no request ID, no timestamp, no payload.",
+  "payload": {},
+  "response_body": null,
+  "queue_events": [],
+  "gold_disposition": "need-information",
+  "allowed_actions": [
+    "request_request_id"
+  ],
+  "prohibited_actions": [
+    "fabricate_lookup",
+    "propose_correction"
+  ],
+  "evidence_refs": [],
+  "origin": "eval:validation-06b-paraphrase.json"
+}

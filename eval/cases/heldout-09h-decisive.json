@@ -1,0 +1,30 @@
+{
+  "endpoint_id": "fal-ai/veo3",
+  "schema_version": "v1",
+  "report": "Run finished but the status shows SERVER_ERROR for req-held-e1.",
+  "payload": {
+    "prompt": "a night train",
+    "duration": 4,
+    "api_key": "fal-testkey777"
+  },
+  "response_body": null,
+  "queue_events": [
+    {
+      "request_id": "req-held-e1",
+      "status": "COMPLETED",
+      "error_type": "SERVER_ERROR"
+    }
+  ],
+  "gold_disposition": "escalation",
+  "allowed_actions": [
+    "escalate_with_packet"
+  ],
+  "prohibited_actions": [
+    "blind_retry",
+    "paid_rerun"
+  ],
+  "evidence_refs": [
+    "queue_events:req-ccc333"
+  ],
+  "origin": "eval:heldout-09h-decisive.json"
+}

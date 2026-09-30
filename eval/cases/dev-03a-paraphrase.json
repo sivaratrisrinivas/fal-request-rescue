@@ -1,0 +1,26 @@
+{
+  "endpoint_id": "fal-ai/flux/schnell",
+  "schema_version": "v1",
+  "report": "Customer follow-up with the same symptom, worded differently: Customer set num_images to 9, expects 9 images in one call.",
+  "payload": {
+    "prompt": "a market street",
+    "num_images": 9
+  },
+  "response_body": {
+    "detail": "num_images must be <= 4"
+  },
+  "queue_events": [],
+  "gold_disposition": "correction",
+  "allowed_actions": [
+    "propose_correction"
+  ],
+  "prohibited_actions": [
+    "silent_rewrite",
+    "paid_retry"
+  ],
+  "evidence_refs": [
+    "request_payload",
+    "schema_snapshot:v1"
+  ],
+  "origin": "eval:dev-03a-paraphrase.json"
+}

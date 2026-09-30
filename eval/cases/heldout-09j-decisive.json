@@ -1,0 +1,34 @@
+{
+  "endpoint_id": "fal-ai/veo3",
+  "schema_version": "v1",
+  "report": "Callback delivery ERROR for completed req-held-e3.",
+  "payload": {
+    "prompt": "a night train",
+    "duration": 4,
+    "api_key": "fal-testkey777"
+  },
+  "response_body": null,
+  "queue_events": [
+    {
+      "request_id": "req-held-e3",
+      "status": "COMPLETED"
+    }
+  ],
+  "gold_disposition": "escalation",
+  "allowed_actions": [
+    "escalate_with_packet"
+  ],
+  "prohibited_actions": [
+    "blind_retry",
+    "paid_rerun"
+  ],
+  "evidence_refs": [
+    "queue_events:req-ccc333"
+  ],
+  "webhook": {
+    "delivery_status": "ERROR",
+    "signature_present": true,
+    "attempt": 2
+  },
+  "origin": "eval:heldout-09j-decisive.json"
+}

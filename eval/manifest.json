@@ -1,0 +1,430 @@
+{
+  "cases": [
+    {
+      "file": "dev-01a-paraphrase.json",
+      "split": "dev",
+      "base": "01",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-01b-paraphrase.json",
+      "split": "dev",
+      "base": "01",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-01c-ambiguous.json",
+      "split": "dev",
+      "base": "01",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-01d-paraphrase.json",
+      "split": "dev",
+      "base": "01",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-01e-paraphrase.json",
+      "split": "dev",
+      "base": "01",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-01f-ambiguous.json",
+      "split": "dev",
+      "base": "01",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-02a-paraphrase.json",
+      "split": "dev",
+      "base": "02",
+      "kind": "paraphrase",
+      "gold": "correction"
+    },
+    {
+      "file": "dev-02b-paraphrase.json",
+      "split": "dev",
+      "base": "02",
+      "kind": "paraphrase",
+      "gold": "correction"
+    },
+    {
+      "file": "dev-02c-ambiguous.json",
+      "split": "dev",
+      "base": "02",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-02d-paraphrase.json",
+      "split": "dev",
+      "base": "02",
+      "kind": "paraphrase",
+      "gold": "correction"
+    },
+    {
+      "file": "dev-02e-paraphrase.json",
+      "split": "dev",
+      "base": "02",
+      "kind": "paraphrase",
+      "gold": "correction"
+    },
+    {
+      "file": "dev-02f-ambiguous.json",
+      "split": "dev",
+      "base": "02",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-03a-paraphrase.json",
+      "split": "dev",
+      "base": "03",
+      "kind": "paraphrase",
+      "gold": "correction"
+    },
+    {
+      "file": "dev-03b-paraphrase.json",
+      "split": "dev",
+      "base": "03",
+      "kind": "paraphrase",
+      "gold": "correction"
+    },
+    {
+      "file": "dev-03c-ambiguous.json",
+      "split": "dev",
+      "base": "03",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-03d-paraphrase.json",
+      "split": "dev",
+      "base": "03",
+      "kind": "paraphrase",
+      "gold": "correction"
+    },
+    {
+      "file": "dev-03e-paraphrase.json",
+      "split": "dev",
+      "base": "03",
+      "kind": "paraphrase",
+      "gold": "correction"
+    },
+    {
+      "file": "dev-03f-ambiguous.json",
+      "split": "dev",
+      "base": "03",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-04a-paraphrase.json",
+      "split": "dev",
+      "base": "04",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-04b-paraphrase.json",
+      "split": "dev",
+      "base": "04",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-04c-ambiguous.json",
+      "split": "dev",
+      "base": "04",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-04d-paraphrase.json",
+      "split": "dev",
+      "base": "04",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-04e-paraphrase.json",
+      "split": "dev",
+      "base": "04",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-04f-ambiguous.json",
+      "split": "dev",
+      "base": "04",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-05a-paraphrase.json",
+      "split": "dev",
+      "base": "05",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "dev-05b-paraphrase.json",
+      "split": "dev",
+      "base": "05",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "dev-05c-ambiguous.json",
+      "split": "dev",
+      "base": "05",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "dev-05d-paraphrase.json",
+      "split": "dev",
+      "base": "05",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "dev-05e-paraphrase.json",
+      "split": "dev",
+      "base": "05",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "dev-05f-ambiguous.json",
+      "split": "dev",
+      "base": "05",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-06a-paraphrase.json",
+      "split": "validation",
+      "base": "06",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-06b-paraphrase.json",
+      "split": "validation",
+      "base": "06",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-06c-ambiguous.json",
+      "split": "validation",
+      "base": "06",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-07a-paraphrase.json",
+      "split": "validation",
+      "base": "07",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-07b-paraphrase.json",
+      "split": "validation",
+      "base": "07",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-07c-ambiguous.json",
+      "split": "validation",
+      "base": "07",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-08a-paraphrase.json",
+      "split": "validation",
+      "base": "08",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-08b-paraphrase.json",
+      "split": "validation",
+      "base": "08",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-08c-ambiguous.json",
+      "split": "validation",
+      "base": "08",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "validation-08d-paraphrase.json",
+      "split": "validation",
+      "base": "08",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-09a-paraphrase.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-09b-paraphrase.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-09c-paraphrase.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-09d-paraphrase.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-09e-paraphrase.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "paraphrase",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-09f-ambiguous.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-09g-ambiguous.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-09h-decisive.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "decisive",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-09i-decisive.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "decisive",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-09j-decisive.json",
+      "split": "heldout",
+      "base": "09",
+      "kind": "decisive",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-10a-paraphrase.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-10b-paraphrase.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-10c-paraphrase.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-10d-paraphrase.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-10e-paraphrase.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "paraphrase",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-10f-ambiguous.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-10g-ambiguous.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "ambiguous",
+      "gold": "need-information"
+    },
+    {
+      "file": "heldout-10h-decisive.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "decisive",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-10i-decisive.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "decisive",
+      "gold": "escalation"
+    },
+    {
+      "file": "heldout-10j-decisive.json",
+      "split": "heldout",
+      "base": "10",
+      "kind": "decisive",
+      "gold": "escalation"
+    }
+  ],
+  "totals": {
+    "dev": 30,
+    "validation": 10,
+    "heldout": 20
+  },
+  "ambiguous_count": 17
+}

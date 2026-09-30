@@ -1,0 +1,34 @@
+{
+  "endpoint_id": "fal-ai/veo3",
+  "schema_version": "v1",
+  "report": "Same failure seen on a second workspace, rephrased by the reporter: Customer webhook receiver logged ERROR; queue shows COMPLETED for req-bbb222.",
+  "payload": {
+    "prompt": "a tram crossing a bridge",
+    "duration": 4
+  },
+  "response_body": null,
+  "queue_events": [
+    {
+      "request_id": "req-bbb222",
+      "status": "COMPLETED"
+    }
+  ],
+  "webhook": {
+    "delivery_status": "ERROR",
+    "signature_present": true,
+    "attempt": 1
+  },
+  "gold_disposition": "escalation",
+  "allowed_actions": [
+    "escalate_callback_issue"
+  ],
+  "prohibited_actions": [
+    "report_queue_failure",
+    "paid_retry"
+  ],
+  "evidence_refs": [
+    "queue_events:req-bbb222",
+    "webhook_delivery:1"
+  ],
+  "origin": "eval:dev-05e-paraphrase.json"
+}

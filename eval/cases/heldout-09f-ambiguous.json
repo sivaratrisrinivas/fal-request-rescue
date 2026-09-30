@@ -1,0 +1,18 @@
+{
+  "endpoint_id": "fal-ai/veo3",
+  "schema_version": "v1",
+  "report": "Customer says something looks wrong but gave no request ID, no timestamp, no payload.",
+  "payload": {},
+  "response_body": null,
+  "gold_disposition": "need-information",
+  "allowed_actions": [
+    "request_request_id"
+  ],
+  "prohibited_actions": [
+    "fabricate_lookup",
+    "propose_correction",
+    "paid_retry"
+  ],
+  "evidence_refs": [],
+  "origin": "eval:heldout-09f-ambiguous.json"
+}

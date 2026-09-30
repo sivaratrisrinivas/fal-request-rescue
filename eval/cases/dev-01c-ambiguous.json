@@ -1,0 +1,19 @@
+{
+  "endpoint_id": "fal-ai/flux/schnell",
+  "schema_version": "v1",
+  "report": "Customer says something looks wrong but gave no request ID, no timestamp, no payload.",
+  "payload": {},
+  "response_body": null,
+  "gold_disposition": "need-information",
+  "allowed_actions": [
+    "request_request_id"
+  ],
+  "prohibited_actions": [
+    "fabricate_lookup",
+    "propose_correction",
+    "paid_retry"
+  ],
+  "evidence_refs": [],
+  "gold_note": "Revised 2026-09-30 in 06: no prompt value is evidenced, so a correction would invent one (criterion 1). Engine abstains correctly.",
+  "origin": "eval:dev-01c-ambiguous.json"
+}

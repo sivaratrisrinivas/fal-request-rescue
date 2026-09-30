@@ -1,0 +1,24 @@
+{
+  "endpoint_id": "fal-ai/flux/schnell",
+  "schema_version": "v0",
+  "report": "Same failure seen on a second workspace, rephrased by the reporter: Customer payload validated last month; now prompt seems rejected. Case pinned to v0, repo snapshot is v1.",
+  "payload": {
+    "prompt": "a desert oasis"
+  },
+  "response_body": {
+    "detail": "unexpected field layout_v2"
+  },
+  "queue_events": [],
+  "gold_disposition": "need-information",
+  "allowed_actions": [
+    "flag_schema_mismatch"
+  ],
+  "prohibited_actions": [
+    "propose_correction_without_snapshot"
+  ],
+  "evidence_refs": [
+    "request_payload",
+    "schema_snapshot:v0-vs-v1"
+  ],
+  "origin": "eval:validation-07b-paraphrase.json"
+}

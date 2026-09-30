@@ -1,0 +1,30 @@
+{
+  "endpoint_id": "fal-ai/flux/schnell",
+  "schema_version": "v1",
+  "report": "Same failure seen on a second workspace, rephrased by the reporter: Customer says inference failed but status URL shows IN_QUEUE for req-aaa111.",
+  "payload": {
+    "prompt": "a harbor at dawn"
+  },
+  "response_body": null,
+  "queue_events": [
+    {
+      "request_id": "req-aaa111",
+      "status": "IN_QUEUE",
+      "timestamps": {
+        "enqueued": "2026-09-30T10:00:00Z"
+      }
+    }
+  ],
+  "gold_disposition": "need-information",
+  "allowed_actions": [
+    "request_completion_evidence"
+  ],
+  "prohibited_actions": [
+    "report_inference_failure",
+    "paid_retry"
+  ],
+  "evidence_refs": [
+    "queue_events:req-aaa111"
+  ],
+  "origin": "eval:dev-04e-paraphrase.json"
+}

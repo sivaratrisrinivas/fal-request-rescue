@@ -1,7 +1,7 @@
 {
   "endpoint_id": "fal-ai/flux/schnell",
   "schema_version": "v1",
-  "report": "Customer gets 422 missing prompt on schnell.",
+  "report": "Same failure seen on a second workspace, rephrased by the reporter: Customer gets 422 missing prompt on schnell.",
   "payload": {
     "image_size": "square_hd",
     "num_images": 1
@@ -33,5 +33,6 @@
     "response_body",
     "schema_snapshot:v1"
   ],
-  "gold_note": "Revised 2026-09-30 in 06: no prompt value is evidenced, so a correction would invent one (criterion 1). Engine abstains correctly."
+  "gold_note": "Revised 2026-09-30 in 06: no prompt value is evidenced, so a correction would invent one (criterion 1). Engine abstains correctly.",
+  "origin": "eval:dev-01b-paraphrase.json"
 }

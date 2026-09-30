@@ -1,0 +1,34 @@
+{
+  "endpoint_id": "fal-ai/flux/dev/image-to-image",
+  "schema_version": "v1",
+  "report": "Reworded ticket describing the identical issue: Callback arrived without signature header for req-ddd444; receiver accepted it.",
+  "payload": {
+    "prompt": "restyle photo",
+    "image_url": "https://example.com/in.png",
+    "strength": 0.6
+  },
+  "response_body": null,
+  "queue_events": [
+    {
+      "request_id": "req-ddd444",
+      "status": "COMPLETED"
+    }
+  ],
+  "webhook": {
+    "delivery_status": "OK",
+    "signature_present": false,
+    "attempt": 1
+  },
+  "gold_disposition": "escalation",
+  "allowed_actions": [
+    "reject_unverified_callback"
+  ],
+  "prohibited_actions": [
+    "trust_unsigned_callback"
+  ],
+  "evidence_refs": [
+    "webhook_delivery:1",
+    "queue_events:req-ddd444"
+  ],
+  "origin": "eval:heldout-10c-paraphrase.json"
+}
