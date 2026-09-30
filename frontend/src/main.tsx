@@ -28,6 +28,7 @@ type CaseDetail = {
   payload: Record<string, unknown>;
   status: string;
   replay: boolean;
+  origin: string;
   disposition: string | null;
   evidence: Evidence[];
 };
@@ -51,6 +52,10 @@ type DispositionOut = {
   packet?: Record<string, unknown>;
 };
 type AuditEvent = { actor: string; event_type: string; timestamp: string };
+type ReplayOut = {
+  mode: string; badge: string; fixture_source: string;
+  submitted_at: string; completed_at: string; disposition: string;
+};
 
 const API = "";
 const badge: React.CSSProperties = { border: "1px solid #999", borderRadius: 4, padding: "2px 8px" };
@@ -99,6 +104,8 @@ function Detail({ id, back }: { id: string; back: () => void }) {
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [draft, setDraft] = useState<string | null>(null);
   const [actor, setActor] = useState("analyst");
+  const [replay, setReplay] = useState<ReplayOut | null>(null);
+  const [liveMsg, setLiveMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -133,6 +140,22 @@ function Detail({ id, back }: { id: string; back: () => void }) {
     await load();
   }
 
+  async function runReplay() {
+    setReplay(await post<ReplayOut>(`/cases/${id}/replay`, {}));
+    await load();
+  }
+
+  async function runLiveTest() {
+    setLiveMsg(null);
+    try {
+      const out = await post<{ result: Record<string, unknown> }>(`/cases/${id}/live-test`, { mode: "live" });
+      setLiveMsg(`Live submitted: ${JSON.stringify(out.result)}`);
+    } catch (e) {
+      setLiveMsg(`Live blocked: ${e}`);
+    }
+    await load();
+  }
+
   function downloadExport() {
     window.open(`${API}/cases/${id}/export`, "_blank");
   }
@@ -148,7 +171,14 @@ function Detail({ id, back }: { id: string; back: () => void }) {
         : <span style={{ ...badge, borderColor: "crimson" }}>live fal request</span>}
       <h1>{detail.id}</h1>
       <p>{detail.endpoint_id}@{detail.schema_version} — {detail.status} — disposition: {detail.disposition ?? "none yet"}</p>
+      <p>Origin: <code>{detail.origin}</code></p>
       <p><strong>Report:</strong> {detail.report}</p>
+
+      <h2>Replay / live</h2>
+      <button onClick={runReplay}>Run replay</button>{" "}
+      <button onClick={runLiveTest}>Live test (capped, needs approval)</button>
+      {replay && <p><span style={badge}>{replay.badge}</span> source <code>{replay.fixture_source}</code> → {replay.disposition} ({replay.submitted_at} – {replay.completed_at})</p>}
+      {liveMsg && <p>{liveMsg}</p>}
 
       <h2>Schema errors ({inv.schema_errors.length})</h2>
       <ul>{inv.schema_errors.map((e, i) => <li key={i}><code>{e.field}</code> [{e.code}] {e.message}</li>)}</ul>

@@ -78,6 +78,11 @@ def init_db(db_path: str) -> None:
             """
         )
         conn.commit()
+        try:
+            conn.execute("ALTER TABLE cases ADD COLUMN origin TEXT DEFAULT 'analyst'")
+            conn.commit()
+        except Exception:
+            pass
     finally:
         conn.close()
 
@@ -117,6 +122,7 @@ def create_case(
     extra_evidence: list | None = None,
     queue_events: list | None = None,
     webhook: dict | None = None,
+    origin: str = "analyst",
 ) -> dict:
     case_id = uuid.uuid4().hex[:12]
     created = _now()
@@ -124,12 +130,12 @@ def create_case(
     try:
         conn.execute(
             "INSERT INTO cases (id, created_at, endpoint_id, schema_version,"
-            " report_redacted, payload_redacted, response_redacted, status, had_secret)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?)",
+            " report_redacted, payload_redacted, response_redacted, status, had_secret, origin)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)",
             (
                 case_id, created, endpoint_id, schema_version, report_redacted,
                 json.dumps(payload_redacted), json.dumps(response_redacted) if response_redacted is not None else None,
-                1 if had_secret else 0,
+                1 if had_secret else 0, origin,
             ),
         )
         ev = []
@@ -324,7 +330,7 @@ def list_cases(db_path: str, page: int = 1, page_size: int = 20) -> dict:
     try:
         total = conn.execute("SELECT COUNT(*) AS n FROM cases").fetchone()["n"]
         rows = conn.execute(
-            "SELECT id, created_at, endpoint_id, schema_version, status"
+            "SELECT id, created_at, endpoint_id, schema_version, status, origin"
             " FROM cases ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (page_size, (page - 1) * page_size),
         ).fetchall()
@@ -363,6 +369,7 @@ def get_case(db_path: str, case_id: str) -> dict | None:
         "response_body": json.loads(row["response_redacted"]) if row["response_redacted"] else None,
         "status": row["status"],
         "had_secret": bool(row["had_secret"]),
+        "origin": row["origin"] if "origin" in row.keys() else "analyst",
         # Hard replay until ticket 05 adds the live path; the UI badges this flag.
         "replay": True,
         "disposition": latest_disposition(db_path, row["id"]),

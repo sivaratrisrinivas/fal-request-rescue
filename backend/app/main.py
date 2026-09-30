@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import llm, store
+from . import fal_live, llm, store
 from .engine import build_disposition, customer_draft
 from .investigate import ALLOWLIST, run_investigation
 from .redact import contains_secret, redact_json, redact_text
@@ -42,6 +42,7 @@ class CaseCreate(BaseModel):
     response_body: dict | None = None
     queue_events: list = Field(default_factory=list)
     webhook: dict | None = None
+    origin: str = "analyst"
 
 
 class EvidenceAttach(BaseModel):
@@ -62,6 +63,12 @@ class ApproveRequest(BaseModel):
 class LiveTestRequest(BaseModel):
     cost_estimate_usd: float | None = None
     model_recommends: bool = False
+    mode: str = "record"
+    status_checked: bool = False
+
+
+class StatusCheckRequest(BaseModel):
+    request_id: str
 
 
 def _redact_inputs(report: str, payload, response_body):
@@ -118,6 +125,7 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             had_secret=had_secret,
             queue_events=queue_red if isinstance(queue_red, list) else [],
             webhook=webhook_red,
+            origin=body.origin,
         )
         return case
 
@@ -165,6 +173,7 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             extra_evidence=extra,
             queue_events=queue_red if isinstance(queue_red, list) else [],
             webhook=webhook_red,
+            origin=str(body.get("origin", "analyst")),
         )
         return case
 
@@ -256,11 +265,84 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
         return store.approve_action(db_path, case_id, body.action_type, body.actor)
 
+    @app.post("/cases/{case_id}/replay", status_code=200)
+    def replay(case_id: str):
+        """Replay-first execution: no credentials, no network, fixture-cited."""
+        from datetime import datetime, timezone
+
+        case = store.get_case(db_path, case_id)
+        if case is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        submitted = datetime.now(timezone.utc).isoformat()
+        inv = run_investigation(case)
+        disp = build_disposition(case, inv)
+        result = {"mode": "replay", "badge": "replay",
+                  "fixture_source": case.get("origin", "analyst"),
+                  "submitted_at": submitted,
+                  "completed_at": datetime.now(timezone.utc).isoformat(),
+                  "schema_errors": len(inv["schema_errors"]),
+                  "disposition": disp["disposition"]}
+        store.save_action(db_path, case_id, "replay", store._digest(inv), result,
+                          approval_state="approved")
+        return {"case_id": case_id, **result}
+
+    @app.post("/cases/{case_id}/request-status")
+    def request_status(case_id: str, body: StatusCheckRequest):
+        """Status lookup that never fabricates: mock-labeled without a key."""
+        if store.get_case(db_path, case_id) is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        if not fal_live.api_key():
+            return {"request_id": body.request_id, "status": "UNKNOWN",
+                    "source": "mock-status-api",
+                    "note": "No live lookup performed without FAL_API_KEY."}
+        return _error(404, "NO_STATUS_URL",
+                      "No live submit on this case yet — submit first, then check its status_url")
+
     @app.post("/cases/{case_id}/live-test")
     def live_test(case_id: str, body: LiveTestRequest):
         case = store.get_case(db_path, case_id)
         if case is None:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        if body.mode == "live":
+            inv = run_investigation(case)
+            pending = [q["request_id"] for q in inv["queue"]
+                       if q["status"] in ("IN_QUEUE", "IN_PROGRESS")]
+            if pending and not body.status_checked:
+                store.save_action(db_path, case_id, "live-test", store._digest({"pending": pending}),
+                                  {"status": "rejected", "reason": "status unchecked"},
+                                  approval_state="rejected")
+                return _error(409, "CHECK_STATUS_FIRST",
+                              f"Request(s) {', '.join(pending)} still pending — check status before a new run")
+            if not fal_live.api_key():
+                store.save_action(db_path, case_id, "live-test", store._digest({"mode": "live"}),
+                                  {"status": "rejected", "reason": "no key"},
+                                  approval_state="rejected")
+                return _error(503, "LIVE_UNAVAILABLE", "Set FAL_API_KEY server-side for live runs")
+            try:
+                submitted = fal_live.submit(case["endpoint_id"], case["payload"])
+                seen = fal_live.fetch_status(submitted["status_url"]) if submitted.get("status_url") else {"status": submitted["status"]}
+            except Exception as exc:
+                return _error(503, "LIVE_UNAVAILABLE", f"{type(exc).__name__}")
+            cost = _price_for(case["endpoint_id"])
+            spent = store.spend_total(db_path, case_id)
+            if spent + cost > SESSION_CAP_USD or spent + cost > DAY_CAP_USD:
+                store.save_action(db_path, case_id, "live-test", store._digest(submitted),
+                                  {"status": "blocked"}, cost_estimate=cost, approval_state="blocked")
+                return _error(403, "SPEND_BLOCKED", "Live cost exceeds caps")
+            if not store.approved_action_exists(db_path, case_id, "live-test"):
+                store.save_action(db_path, case_id, "live-test", store._digest(submitted),
+                                  {"status": "rejected", "reason": "no approval"},
+                                  cost_estimate=cost, approval_state="rejected")
+                return _error(403, "APPROVAL_REQUIRED", "Analyst approval required before any paid run")
+            action = store.save_action(
+                db_path, case_id, "live-test", store._digest(submitted),
+                {"status": submitted["status"], "request_id": submitted["request_id"],
+                 "status_url": submitted.get("status_url"),
+                 "submitted_at": submitted["submitted_at"],
+                 "observed_status": seen["status"],
+                 "cost_estimate_usd": cost},
+                cost_estimate=cost, approval_state="approved")
+            return action
         # Spend caps are code law: checked first, approvals never override them.
         cost = body.cost_estimate_usd if body.cost_estimate_usd is not None else _price_for(case["endpoint_id"])
         spent = store.spend_total(db_path, case_id)

@@ -4,6 +4,8 @@ import pathlib
 
 import jsonschema
 
+from .policy import classify
+
 ALLOWLIST = (
     "schema_validate",
     "queue_status_lookup",
@@ -100,7 +102,10 @@ def interpret_queue(events: list) -> list:
                 verdict = "Completed successfully."
         else:
             verdict = f"Unknown status '{status}' — request clarification, assume nothing."
-        out.append({"request_id": rid, "status": status, "verdict": verdict})
+        item = {"request_id": rid, "status": status, "verdict": verdict}
+        if status == "COMPLETED" and ev.get("error_type"):
+            item["retry"] = classify(ev.get("error_type"))
+        out.append(item)
     return out
 
 
