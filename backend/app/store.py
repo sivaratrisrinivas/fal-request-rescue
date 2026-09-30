@@ -96,6 +96,8 @@ def create_case(
     response_redacted=None,
     had_secret: bool = False,
     extra_evidence: list | None = None,
+    queue_events: list | None = None,
+    webhook: dict | None = None,
 ) -> dict:
     case_id = uuid.uuid4().hex[:12]
     created = _now()
@@ -120,6 +122,10 @@ def create_case(
             kind = str(item.get("kind", "attachment"))
             source = str(item.get("source", "import"))
             ev.append(_add_evidence(conn, case_id, kind, source, item.get("content", item)))
+        for qe in queue_events or []:
+            ev.append(_add_evidence(conn, case_id, "queue_event", "status-api", qe))
+        if webhook is not None:
+            ev.append(_add_evidence(conn, case_id, "webhook_delivery", "callback", webhook))
         _audit(conn, case_id, "analyst", "case.created", {"endpoint_id": endpoint_id})
         conn.commit()
     finally:
@@ -135,6 +141,19 @@ def create_case(
         "had_secret": had_secret,
         "evidence": ev,
     }
+
+
+def add_evidence(db_path: str, case_id: str, kind: str, source: str, content) -> dict | None:
+    conn = _connect(db_path)
+    try:
+        if conn.execute("SELECT 1 FROM cases WHERE id = ?", (case_id,)).fetchone() is None:
+            return None
+        ev = _add_evidence(conn, case_id, kind, source, content)
+        _audit(conn, case_id, "analyst", "evidence.attached", {"kind": kind})
+        conn.commit()
+        return ev
+    finally:
+        conn.close()
 
 
 def list_cases(db_path: str, page: int = 1, page_size: int = 20) -> dict:

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import store
+from .investigate import run_investigation
 from .redact import redact_json, redact_text
 
 
@@ -15,6 +16,24 @@ class CaseCreate(BaseModel):
     report: str = ""
     payload: dict = Field(default_factory=dict)
     response_body: dict | None = None
+    queue_events: list = Field(default_factory=list)
+    webhook: dict | None = None
+
+
+class EvidenceAttach(BaseModel):
+    kind: str
+    source: str = "analyst"
+    content: dict = Field(default_factory=dict)
+
+
+def _redact_inputs(report: str, payload, response_body):
+    """Single shared redaction path for create/import (see ticket 01 review)."""
+    report_red, s1 = redact_text(str(report))
+    payload_red, s2 = redact_json(payload if isinstance(payload, dict) else {"value": payload})
+    resp_red, s3 = (None, False)
+    if response_body is not None:
+        resp_red, s3 = redact_json(response_body)
+    return report_red, payload_red, resp_red, bool(s1 or s2 or s3)
 
 
 def _error(status: int, code: str, message: str, details=None):
@@ -44,11 +63,13 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
 
     @app.post("/cases", status_code=201)
     def create_case(body: CaseCreate):
-        report_red, report_secret = redact_text(body.report)
-        payload_red, payload_secret = redact_json(body.payload)
-        resp_red, resp_secret = (None, False)
-        if body.response_body is not None:
-            resp_red, resp_secret = redact_json(body.response_body)
+        report_red, payload_red, resp_red, had_secret = _redact_inputs(
+            body.report, body.payload, body.response_body)
+        queue_red, _ = redact_json(body.queue_events)
+        webhook_red = None
+        if body.webhook is not None:
+            webhook_red, s = redact_json(body.webhook)
+            had_secret = had_secret or s
         case = store.create_case(
             db_path,
             endpoint_id=body.endpoint_id,
@@ -56,7 +77,9 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             report_redacted=report_red,
             payload_redacted=payload_red,
             response_redacted=resp_red,
-            had_secret=report_secret or payload_secret or resp_secret,
+            had_secret=had_secret,
+            queue_events=queue_red if isinstance(queue_red, list) else [],
+            webhook=webhook_red,
         )
         return case
 
@@ -84,11 +107,14 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             return _error(422, "VALIDATION_ERROR", "Import requires endpoint_id")
         if not isinstance(endpoint_id, str) or not endpoint_id:
             return _error(422, "VALIDATION_ERROR", "Import requires endpoint_id")
-        report_red, s1 = redact_text(str(report))
-        payload_red, s2 = redact_json(payload if isinstance(payload, dict) else {"value": payload})
-        resp_red, s3 = (None, False)
-        if response_body is not None:
-            resp_red, s3 = redact_json(response_body)
+        report_red, payload_red, resp_red, had_secret = _redact_inputs(
+            report, payload, response_body)
+        queue_raw = body.get("queue_events") if isinstance(body.get("queue_events"), list) else []
+        queue_red, _ = redact_json(queue_raw)
+        webhook_red = None
+        if body.get("webhook") is not None:
+            webhook_red, s = redact_json(body["webhook"])
+            had_secret = had_secret or s
         extra = body.get("evidence") if isinstance(body.get("evidence"), list) else None
         case = store.create_case(
             db_path,
@@ -97,8 +123,10 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             report_redacted=report_red,
             payload_redacted=payload_red,
             response_redacted=resp_red,
-            had_secret=bool(s1 or s2 or s3),
+            had_secret=had_secret,
             extra_evidence=extra,
+            queue_events=queue_red if isinstance(queue_red, list) else [],
+            webhook=webhook_red,
         )
         return case
 
@@ -108,6 +136,21 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         if case is None:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
         return case
+
+    @app.post("/cases/{case_id}/evidence", status_code=201)
+    def attach_evidence(case_id: str, body: EvidenceAttach):
+        content_red, _ = redact_json(body.content)
+        ev = store.add_evidence(db_path, case_id, body.kind, body.source, content_red)
+        if ev is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        return ev
+
+    @app.post("/cases/{case_id}/investigate")
+    def investigate(case_id: str):
+        case = store.get_case(db_path, case_id)
+        if case is None:
+            return _error(404, "NOT_FOUND", f"Case {case_id} not found")
+        return run_investigation(case)
 
     return app
 
