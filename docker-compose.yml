@@ -5,6 +5,10 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      retries: 12
     volumes:
       - api-data:/srv/data
     environment:
@@ -22,7 +26,8 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   api-data:
