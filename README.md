@@ -1,9 +1,20 @@
-# fal Request Rescue (prototype, ticket 01)
+# fal Request Rescue (prototype)
 
 Replay-first support investigation scaffold. Ticket 01 only: case CRUD/import/export,
 redaction before save, 3 pinned schema snapshots, 10 synthetic fixtures.
 
-## Run backend
+## Deploy (Docker, replay default, no credentials)
+
+```bash
+docker compose up -d --build
+# UI: http://localhost:8080   API: http://localhost:8000
+docker compose down
+```
+
+Live paths stay opt-in and capped; they need `FAL_API_KEY` / `OPENROUTER_API_KEY`
+in the server environment (never in the repo or frontend).
+
+## Run backend (local dev)
 
 ```bash
 cd backend
@@ -34,3 +45,5 @@ python -m pytest tests/ -q
 - Secrets are redacted before storage and never sent to any model (no model call in 01).
 - `schemas/` holds pinned snapshots + pricing. `fixtures/case-*.json` are the 10 gold cases.
 - Default SQLite file is `backend/data/request_rescue.db` (gitignored); tests use tmp files.
+- Docs: `docs/ARCHITECTURE.md`, `docs/DATA.md`, `docs/DEMO.md` (3-min walkthrough),
+  `docs/ROI.md` (editable scenario), `eval/REPORT.md` (70 cases, bar pass).

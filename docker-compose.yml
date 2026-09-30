@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - api-data:/srv/data
+    environment:
+      SESSION_CAP_USD: "2.0"
+      DAY_CAP_USD: "5.0"
+      # No keys baked in. Replay works with none; live paths stay
+      # unavailable until FAL_API_KEY / OPENROUTER_API_KEY are provided.
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  api-data:

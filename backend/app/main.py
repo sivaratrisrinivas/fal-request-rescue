@@ -1,7 +1,6 @@
 """FastAPI surface: cases, evidence, investigate, disposition, approvals."""
 import json
 import os
-import pathlib
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -11,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from . import fal_live, llm, store
 from .engine import build_disposition, customer_draft
-from .investigate import ALLOWLIST, run_investigation
+from .investigate import ALLOWLIST, SCHEMA_DIR, run_investigation
 from .redact import contains_secret, redact_json, redact_text
 
 SESSION_CAP_USD = float(os.environ.get("SESSION_CAP_USD", "2.0"))
@@ -25,8 +24,7 @@ def _price_for(endpoint_id: str) -> float:
     if _PRICING is None:
         _PRICING = {}
         try:
-            doc = json.loads((pathlib.Path(__file__).resolve().parents[2]
-                              / "schemas" / "pricing.json").read_text())
+            doc = json.loads((SCHEMA_DIR / "pricing.json").read_text())
             for e in doc.get("endpoints", []):
                 _PRICING[e["endpoint_id"]] = float(e.get("price_usd_per_run", 0.01))
         except (OSError, ValueError, KeyError):

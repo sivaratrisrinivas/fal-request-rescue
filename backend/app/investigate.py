@@ -15,6 +15,9 @@ ALLOWLIST = (
 )
 
 SCHEMA_DIR = pathlib.Path(__file__).resolve().parents[2] / "schemas"
+if not SCHEMA_DIR.is_dir():
+    # Container layout (/srv/app + /srv/schemas): schemas sit beside the package.
+    SCHEMA_DIR = pathlib.Path(__file__).resolve().parents[1] / "schemas"
 
 _snapshots: dict | None = None
 
