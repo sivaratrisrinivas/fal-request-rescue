@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import llm, openrouter_live, store
+from . import llm, gemini_live, store
 from .run_policy import daily_quota, decide_run
 from .engine import build_disposition, customer_draft
 from .investigate import ALLOWLIST, SCHEMA_DIR, run_investigation
@@ -348,7 +348,7 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         # cost is $0, so caps meter abuse, not money.
         cost = 0.0
         verdict = decide_run(mode="live", pending_request_ids=pending,
-                             key_present=bool(openrouter_live.api_key()),
+                             key_present=bool(gemini_live.api_key()),
                              spent=store.spend_total(db_path, case_id),
                              session_cap=SESSION_CAP_USD, day_cap=DAY_CAP_USD, cost=cost,
                              approved=store.approved_action_exists(db_path, case_id, "live-test"),
@@ -365,8 +365,8 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             return _error(status, verdict["code"], verdict["message"])
         # Gates passed before any network: submit only on OK.
         try:
-            submitted = openrouter_live.submit(case["endpoint_id"], case["payload"])
-            seen = openrouter_live.fetch_status(submitted.get("status_url"))
+            submitted = gemini_live.submit(case["endpoint_id"], case["payload"])
+            seen = gemini_live.fetch_status(submitted.get("status_url"))
         except Exception as exc:
             return _error(503, "LIVE_UNAVAILABLE", str(exc))
         action = store.save_action(

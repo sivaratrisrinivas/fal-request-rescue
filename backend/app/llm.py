@@ -1,4 +1,4 @@
-"""Server-side OpenRouter adapter. Key stays in the environment.
+"""Server-side Gemini adapter. Key stays in the environment.
 
 Never imported by the frontend. Only redacted summaries are sent.
 Tests monkeypatch `draft_disposition`; no network in tests.
@@ -10,8 +10,16 @@ from pydantic import BaseModel, Field
 
 from .investigate import ALLOWLIST
 
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "google/gemma-4-31b-it:free"
+API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+DEFAULT_MODEL = "gemini-3.5-flash"
+
+
+def model() -> str:
+    return os.environ.get("GEMINI_MODEL", DEFAULT_MODEL)
+
+
+def api_key() -> str:
+    return os.environ.get("GEMINI_API_KEY", "")
 
 
 class ToolRejected(ValueError):
@@ -27,36 +35,50 @@ class DraftSchema(BaseModel):
     detail: str = ""
 
 
-def draft_disposition(summary: dict) -> dict:
-    key = os.environ.get("OPENROUTER_API_KEY", "")
+def _generate(body: dict) -> str:
+    key = api_key()
     if not key:
-        raise RuntimeError("LLM_UNAVAILABLE: set OPENROUTER_API_KEY server-side")
-    model = os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
+        raise RuntimeError("LLM_UNAVAILABLE: set GEMINI_API_KEY server-side")
     resp = httpx.post(
-        API_URL,
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "messages": [
-                {"role": "system",
-                 "content": ("Propose one disposition as JSON: disposition "
-                             "(correction|need-information|escalation), confidence, "
-                             "uncertainty, tool (one of: " + ", ".join(ALLOWLIST) + "), "
-                             "missing[], detail. Never invent values or endpoints.")},
-                {"role": "user", "content": __import__("json").dumps(summary)},
-            ],
-        },
-        timeout=30,
+        f"{API_BASE}/models/{model()}:generateContent",
+        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+        json=body,
+        timeout=60,
     )
     resp.raise_for_status()
-    data = resp.json()
     try:
-        content = data["choices"][0]["message"]["content"]
+        parts = resp.json()["candidates"][0]["content"]["parts"]
+        return "".join(p.get("text", "") for p in parts)
     except (KeyError, IndexError, TypeError) as exc:
-        raise ValueError(f"bad LLM envelope: {exc}") from exc
-    draft = DraftSchema.model_validate_json(content)
+        raise ValueError(f"bad Gemini envelope: {exc}") from exc
+
+
+def draft_disposition(summary: dict) -> dict:
+    text = _generate({
+        "system_instruction": {"parts": [{"text": (
+            "Propose one disposition as JSON: disposition "
+            "(correction|need-information|escalation), confidence, "
+            "uncertainty, tool (one of: " + ", ".join(ALLOWLIST) + "), "
+            "missing[], detail. Never invent values or endpoints.")}]},
+        "contents": [{"parts": [{"text": __import__("json").dumps(summary)}]}],
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "disposition": {"type": "STRING"},
+                    "confidence": {"type": "STRING"},
+                    "uncertainty": {"type": "STRING"},
+                    "tool": {"type": "STRING"},
+                    "missing": {"type": "ARRAY", "items": {"type": "STRING"}},
+                    "detail": {"type": "STRING"},
+                },
+                "required": ["disposition", "tool"],
+            },
+        },
+    })
+    draft = DraftSchema.model_validate_json(text)
     if draft.tool not in ALLOWLIST:
         raise ToolRejected(f"tool '{draft.tool}' outside allowlist")
     if draft.disposition not in ("correction", "need-information", "escalation"):

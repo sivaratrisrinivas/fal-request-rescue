@@ -10,9 +10,9 @@ escalation packet), with human approval on paid runs and customer text.
   model send; `investigate` owns schema validation, queue/webhook state parsing,
   evidence citation, and the fixed diagnostic allowlist (`ALLOWLIST`; no shell,
   browser, or code execution); `engine` decides the single disposition and
-  renders deterministic customer drafts; `llm` is a server-side OpenRouter
+  renders deterministic customer drafts; `llm` is a server-side Gemini
   adapter (temp 0, JSON mode, draft re-validated in the route); `fal_live` is
-  the server-side live executor over OpenRouter's free tier ($0 per run, daily
+  the server-side live executor over the Gemini API free tier ($0 per run, daily
   quota enforced in code); `policy` classifies
   retryable errors with attempt caps; `store` is SQLite (cases, evidence,
   findings, actions, audit events).

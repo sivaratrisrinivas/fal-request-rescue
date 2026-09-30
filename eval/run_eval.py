@@ -30,12 +30,12 @@ def probe_gates(client: TestClient) -> dict:
 
     # Deterministic even if the developer shell exports a key: the unavailable
     # probe must see no key. Restored afterwards.
-    saved = os.environ.pop("OPENROUTER_API_KEY", None)
+    saved = os.environ.pop("GEMINI_API_KEY", None)
     try:
         return _probe_gates_unguarded(client)
     finally:
         if saved is not None:
-            os.environ["OPENROUTER_API_KEY"] = saved
+            os.environ["GEMINI_API_KEY"] = saved
 
 
 def _probe_gates_unguarded(client: TestClient) -> dict:

@@ -15,10 +15,10 @@ services:
       SESSION_CAP_USD: "2.0"
       DAY_CAP_USD: "5.0"
       DAILY_QUOTA: "50"
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemma-4-31b-it:free}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
       # No keys baked in. Replay works with none; live tests need
-      # OPENROUTER_API_KEY in the server environment (free tier, 50/day).
+      # GEMINI_API_KEY in the server environment (free tier, quota enforced).
   web:
     build:
       context: .

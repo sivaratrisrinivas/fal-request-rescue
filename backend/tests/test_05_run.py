@@ -4,7 +4,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app import openrouter_live
+from app import gemini_live
 from app.main import create_app
 
 
@@ -63,13 +63,13 @@ def test_live_without_key_is_unavailable(client):
 
 
 def test_live_with_mocked_runner_records_run(client, monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(openrouter_live, "submit", lambda endpoint_id, payload: {
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(gemini_live, "submit", lambda endpoint_id, payload: {
         "request_id": "or-gen-1", "status": "COMPLETED",
         "submitted_at": "2026-09-30T00:00:00Z",
         "completed_at": "2026-09-30T00:00:01Z",
         "response_preview": "{\"render\": \"a lighthouse at dusk\"}"})
-    monkeypatch.setattr(openrouter_live, "fetch_status", lambda status_url: {"status": "COMPLETED"})
+    monkeypatch.setattr(gemini_live, "fetch_status", lambda status_url: {"status": "COMPLETED"})
     cid = create(client, payload={"prompt": "x"})
     approve_live(client, cid)
     r = client.post(f"/cases/{cid}/live-test", json={"mode": "live"})
@@ -80,7 +80,7 @@ def test_live_with_mocked_runner_records_run(client, monkeypatch):
 
 
 def test_exhausted_quota_blocks_before_approval(client, monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setenv("DAILY_QUOTA", "0")
     cid = create(client, payload={"prompt": "x"})
     r = client.post(f"/cases/{cid}/live-test", json={"mode": "live"})

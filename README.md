@@ -26,9 +26,9 @@ docker compose up -d --build
 Open http://localhost:8080 for the UI. The API lives at
 http://localhost:8000. When you finish, run `docker compose down`.
 
-Live tests run against OpenRouter's free tier (50 requests a day, no credits).
-Put your key in the server environment as `OPENROUTER_API_KEY` and the app
-enforces the daily quota in code. Without a key, or past quota, it tells you
+Live tests run against the Gemini API free tier (no credits).
+Put your key in the server environment as `GEMINI_API_KEY` and the app
+enforces a daily quota in code. Without a key, or past quota, it tells you
 so and stops.
 
 ## How to work a case, step by step
@@ -48,7 +48,7 @@ so and stops.
    fixture by name, and records the run. Free, always.
 7. Touch live traffic only on purpose. A live test needs your approval first,
    then must pass the spend caps and the daily free quota. It runs against a
-   free OpenRouter model, so each run costs $0.
+   free Gemini flash model, so each run costs $0.
    Without a runner it tells you so and stops.
 
 ## How to develop it
@@ -100,8 +100,8 @@ flowchart TD
     I --> SCH[pinned schemas]
     I --> E[engine<br/>one answer]
     E --> P[decide_run<br/>pending, runner, caps, approval]
-    P --> O[OpenRouter adapter<br/>server side, mocked in tests]
-    P --> F[OpenRouter free tier<br/>50/day in code, $0, mocked in tests]
+    P --> O[Gemini adapter<br/>server side, mocked in tests]
+    P --> F[Gemini free tier<br/>quota in code, $0, mocked in tests]
     P --> DB
     UI -.-> EV[eval harness<br/>70 cases plus gate probes]
     EV -.-> API
