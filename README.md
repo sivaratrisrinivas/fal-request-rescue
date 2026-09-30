@@ -26,6 +26,11 @@ docker compose up -d --build
 Open http://localhost:8080 for the UI. The API lives at
 http://localhost:8000. When you finish, run `docker compose down`.
 
+Live tests run against local Ollama, free and keyless. Either install Ollama
+on your machine and pull a small model (`ollama pull gemma3:1b`), or start
+the bundled runner with `docker compose --profile local-ai up -d` and pull
+the model inside it (`docker compose exec ollama ollama pull gemma3:1b`).
+
 ## How to work a case, step by step
 
 1. Open the UI. You see what is waiting, newest worry first, each in plain
@@ -42,12 +47,12 @@ http://localhost:8000. When you finish, run `docker compose down`.
 6. Try a replay any time. It reruns the case against its fixture, cites the
    fixture by name, and records the run. Free, always.
 7. Touch live traffic only on purpose. A live test needs your approval first,
-   then must pass the spend caps. Without a key it tells you so and stops.
+   then must pass the spend caps. It runs against a local Ollama model, free.
+   Without a runner it tells you so and stops.
 
 ## How to develop it
 
 Backend first, from `backend/`:
-
 ```bash
 pip install -r requirements.txt
 python -m uvicorn app.main:app --port 8000
@@ -71,7 +76,7 @@ python3 eval/run_eval.py --split all   # 70 cases + gate probes, must exit 0
 ```
 
 The bar is four legs. Starter cases green. No secrets anywhere stored or
-shown. Nine of ten supported held-out answers right. Spend, status, and key
+shown. Nine of ten supported held-out answers right. Spend, status, and runner
 gates all fire. Results land in `eval/REPORT.md`.
 
 ## What the checks say
@@ -93,9 +98,9 @@ flowchart TD
     API --> I[investigate<br/>schema, queue, webhook, allowlist]
     I --> SCH[pinned schemas]
     I --> E[engine<br/>one answer]
-    E --> P[decide_run<br/>pending, key, caps, approval]
+    E --> P[decide_run<br/>pending, runner, caps, approval]
     P --> O[OpenRouter adapter<br/>server side, mocked in tests]
-    P --> F[fal queue adapter<br/>key gated, mocked in tests]
+    P --> F[Ollama local runner<br/>no key, $0, mocked in tests]
     P --> DB
     UI -.-> EV[eval harness<br/>70 cases plus gate probes]
     EV -.-> API

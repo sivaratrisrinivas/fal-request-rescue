@@ -10,8 +10,18 @@ services:
     environment:
       SESSION_CAP_USD: "2.0"
       DAY_CAP_USD: "5.0"
-      # No keys baked in. Replay works with none; live paths stay
-      # unavailable until FAL_API_KEY / OPENROUTER_API_KEY are provided.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:1b}
+      # No keys baked in. Replay works with none; live tests need a local
+      # runner: install Ollama on the host and run `ollama pull gemma3:1b`.
+      # Or start the bundled one: `docker compose --profile local-ai up -d`.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["local-ai"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
   web:
     build:
       context: .
@@ -23,3 +33,4 @@ services:
 
 volumes:
   api-data:
+  ollama-data:

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import fal_live, llm, store
+from . import llm, local_live, store
 from .engine import build_disposition, customer_draft
 from .investigate import ALLOWLIST, SCHEMA_DIR, run_investigation
 from .run_policy import decide_run
@@ -296,15 +296,19 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
 
     @app.post("/cases/{case_id}/request-status")
     def request_status(case_id: str, body: StatusCheckRequest):
-        """Status lookup that never fabricates: mock-labeled without a key."""
-        if store.get_case(db_path, case_id) is None:
+        """Status lookup that never fabricates: recorded runs first, labeled mock otherwise."""
+        hist = store.history(db_path, case_id)
+        if hist is None:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
-        if not fal_live.api_key():
-            return {"request_id": body.request_id, "status": "UNKNOWN",
-                    "source": "mock-status-api",
-                    "note": "No live lookup performed without FAL_API_KEY."}
-        return _error(404, "NO_STATUS_URL",
-                      "No live submit on this case yet — submit first, then check its status_url")
+        for action in hist["actions"]:
+            result = action.get("result", {})
+            if result.get("request_id") == body.request_id:
+                return {"request_id": body.request_id, "status": result.get("status", "UNKNOWN"),
+                        "source": "recorded-run", "observed_status": result.get("observed_status"),
+                        "note": "Read from this case's recorded runs, not a fresh lookup."}
+        return {"request_id": body.request_id, "status": "UNKNOWN",
+                "source": "mock-status-api",
+                "note": "No recorded run with this ID on the case; no live lookup performed."}
 
     @app.post("/cases/{case_id}/live-test")
     def live_test(case_id: str, body: LiveTestRequest):
@@ -339,9 +343,11 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         inv = run_investigation(case)
         pending = [q["request_id"] for q in inv["queue"]
                    if q["status"] in ("IN_QUEUE", "IN_PROGRESS")]
-        cost = _price_for(case["endpoint_id"])
+        # Local runner: no key exists, reachability is proven at submit;
+        # cost is $0, so caps meter abuse, not money.
+        cost = 0.0
         verdict = decide_run(mode="live", pending_request_ids=pending,
-                             key_present=bool(fal_live.api_key()),
+                             key_present=True,
                              spent=store.spend_total(db_path, case_id),
                              session_cap=SESSION_CAP_USD, day_cap=DAY_CAP_USD, cost=cost,
                              approved=store.approved_action_exists(db_path, case_id, "live-test"),
@@ -356,15 +362,16 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             return _error(status, verdict["code"], verdict["message"])
         # Gates passed before any network: submit only on OK.
         try:
-            submitted = fal_live.submit(case["endpoint_id"], case["payload"])
-            seen = fal_live.fetch_status(submitted["status_url"]) if submitted.get("status_url") else {"status": submitted["status"]}
+            submitted = local_live.submit(case["endpoint_id"], case["payload"])
+            seen = local_live.fetch_status(submitted.get("status_url"))
         except Exception as exc:
-            return _error(503, "LIVE_UNAVAILABLE", f"{type(exc).__name__}")
+            return _error(503, "LIVE_UNAVAILABLE", str(exc))
         action = store.save_action(
             db_path, case_id, "live-test", store._digest(submitted),
             {"status": submitted["status"], "request_id": submitted["request_id"],
-             "status_url": submitted.get("status_url"),
              "submitted_at": submitted["submitted_at"],
+             "completed_at": submitted.get("completed_at"),
+             "response_preview": submitted.get("response_preview"),
              "observed_status": seen["status"],
              "cost_estimate_usd": cost},
             cost_estimate=cost, approval_state="approved")

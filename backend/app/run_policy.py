@@ -28,7 +28,7 @@ def decide_run(*, mode: str, pending_request_ids: list, key_present: bool,
                        f"Request(s) {ids} still pending — check status before a new run.").as_dict()
     if not key_present:
         return Verdict(False, "LIVE_UNAVAILABLE",
-                       "Set FAL_API_KEY server-side for live runs.").as_dict()
+                       "No live runner configured server-side.").as_dict()
     if spent + cost > session_cap or spent + cost > day_cap:
         return Verdict(False, "SPEND_BLOCKED",
                        f"Cost {cost} exceeds caps (session {session_cap}, day {day_cap}).").as_dict()

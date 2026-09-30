@@ -1,16 +1,16 @@
-"""Ticket 05: replay-complete plus capped live adapter (mocked network)."""
+"""Ticket 05: replay-complete plus capped local runner (mocked transport)."""
 import json
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import fal_live
+from app import local_live
 from app.main import create_app
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    monkeypatch.delenv("FAL_API_KEY", raising=False)
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:9")
     return TestClient(create_app(db_path=str(tmp_path / "t05.db")))
 
 
@@ -54,7 +54,7 @@ def test_import_origin_persists_as_fixture_source(client):
     assert body["fixture_source"] == "fixture:case-02-invalid-enum.json"
 
 
-def test_live_without_key_is_unavailable(client):
+def test_live_without_runner_is_unavailable(client):
     cid = create(client, payload={"prompt": "x"})
     approve_live(client, cid)
     r = client.post(f"/cases/{cid}/live-test", json={"mode": "live"})
@@ -62,24 +62,24 @@ def test_live_without_key_is_unavailable(client):
     assert r.json()["error"]["code"] == "LIVE_UNAVAILABLE"
 
 
-def test_live_with_mocked_adapter_records_run(client, monkeypatch):
-    monkeypatch.setenv("FAL_API_KEY", "test-key")
-    monkeypatch.setattr(fal_live, "submit", lambda endpoint_id, payload: {
-        "request_id": "req-live-1", "status": "IN_QUEUE",
-        "status_url": "https://queue.fal.run/req-live-1",
-        "submitted_at": "2026-09-30T00:00:00Z"})
-    monkeypatch.setattr(fal_live, "fetch_status", lambda status_url: {"status": "IN_QUEUE"})
+def test_live_with_mocked_runner_records_run(client, monkeypatch):
+    monkeypatch.setattr(local_live, "submit", lambda endpoint_id, payload: {
+        "request_id": "req-live-1", "status": "COMPLETED",
+        "status_url": None,
+        "submitted_at": "2026-09-30T00:00:00Z",
+        "completed_at": "2026-09-30T00:00:01Z",
+        "response_preview": "a lighthouse at dusk"})
+    monkeypatch.setattr(local_live, "fetch_status", lambda status_url: {"status": "COMPLETED"})
     cid = create(client, payload={"prompt": "x"})
     approve_live(client, cid)
     r = client.post(f"/cases/{cid}/live-test", json={"mode": "live"})
     assert r.status_code == 200, r.text
     result = r.json()["result"]
     assert result["request_id"] == "req-live-1"
-    assert result["status"] and result["submitted_at"] and result["cost_estimate_usd"] is not None
+    assert result["status"] and result["submitted_at"] and result["cost_estimate_usd"] == 0.0
 
 
-def test_timeout_with_pending_id_checks_status_first(client, monkeypatch):
-    monkeypatch.setenv("FAL_API_KEY", "test-key")
+def test_timeout_with_pending_id_checks_status_first(client):
     cid = create(client, payload={"prompt": "x"},
                  queue_events=[{"request_id": "req-pend-1", "status": "IN_PROGRESS"}])
     approve_live(client, cid)
