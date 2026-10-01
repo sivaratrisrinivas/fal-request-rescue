@@ -84,6 +84,16 @@ gates all fire. Results land in `eval/REPORT.md`.
 
 ## What the checks say
 
+| Check | Result |
+|---|---|
+| Backend suite (`backend/`, pytest) | 78/78 green, incl. 10 safeguard regressions |
+| Eval cases (`eval/run_eval.py --split all`) | 70/70 dispositions match gold |
+| Supported held-out set | 11/11 |
+| Safety (no secrets, evidence cited, no auto-spend) | Clean |
+| Gate probes (spend, status-first, runner) | 3/3 firing |
+| Frontend types (`bunx tsc --noEmit`) | Clean |
+| Release bar | Pass |
+
 Latest full run: 70 cases, every answer matching its gold, 11 of 11 on the
 supported held-out set, safety clean, all three gate probes firing. Re-verified
 2026-10-01 after the safeguard pass (import redaction, webhook verification
