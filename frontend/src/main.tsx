@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import "./index.css";
 
 type CaseRow = {
   id: string;
@@ -58,8 +59,7 @@ type ReplayOut = {
   submitted_at: string; completed_at: string; disposition: string;
 };
 
-const API =
-  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL ?? "";
+const API = import.meta.env.VITE_API_URL ?? "";
 const WHERE: Record<string, string> = {
   "schema-validation": "the request, checked against the expected format",
   "queue-state": "the queue status",
@@ -87,7 +87,6 @@ const CLOSED_BEAT: Record<string, [string, string]> = {
   "need-information": ["Waiting on customer — request sent.", "Nothing rerun. The case rests until they reply."],
   escalation: ["With engineering.", "Packet attached. No fix promised to the customer."],
 };
-const badge: React.CSSProperties = { border: "1px solid #999", borderRadius: 4, padding: "2px 8px" };
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(`${API}${path}`);
@@ -105,34 +104,133 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return (await r.json()) as T;
 }
 
+const ink = "var(--ink)";
+const secondary = "var(--secondary)";
+const hairline = "var(--hairline)";
+
+function Chevron({ direction = "right" }: { direction?: "left" | "right" }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+      style={{ transform: direction === "left" ? "rotate(180deg)" : undefined, flexShrink: 0 }}>
+      <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.5"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function Check() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <circle cx="10" cy="10" r="9" stroke="var(--ok)" strokeWidth="1.5" />
+      <path d="M6.5 10.2 8.8 12.5 13.5 7.5" stroke="var(--ok)" strokeWidth="1.5"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="rise" style={{ maxWidth: 640, margin: "0 auto", padding: "20px 20px 96px" }}>
+      {children}
+    </main>
+  );
+}
+
+function TopBar({ onBack, practice }: { onBack: () => void; practice: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "8px 0 16px", borderBottom: `1px solid ${hairline}`, marginBottom: 32 }}>
+      <button onClick={onBack}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none",
+          border: "none", color: "var(--accent-pressed)", cursor: "pointer", fontSize: 17, padding: "4px 0" }}>
+        <Chevron direction="left" /> Cases
+      </button>
+      <span style={{ fontSize: 11, letterSpacing: "0.12em", color: secondary }}>
+        {practice ? "PRACTICE · SYNTHETIC" : "LIVE FAL REQUEST"}
+      </span>
+    </div>
+  );
+}
+
+function PrimaryButton({ onClick, children, type = "button" }: {
+  onClick?: () => void; children: React.ReactNode; type?: "button" | "submit";
+}) {
+  const [pressed, setPressed] = useState(false);
+  return (
+    <button type={type} onClick={onClick} onMouseDown={() => setPressed(true)} onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+      style={{ width: "100%", fontSize: 17, fontWeight: 600, padding: "14px 24px",
+        background: pressed ? "var(--accent-pressed)" : "var(--accent)", color: "#fff",
+        border: "none", borderRadius: 12, cursor: "pointer",
+        transition: "background 160ms var(--ease-out)" }}>
+      {children}
+    </button>
+  );
+}
+
+function QuietButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick}
+      style={{ background: "none", border: "none", color: "var(--accent-pressed)",
+        cursor: "pointer", fontSize: 17, padding: "12px 0" }}>
+      {children}
+    </button>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 style={{ fontSize: 20, fontWeight: 600, margin: "40px 0 4px", letterSpacing: "-0.01em" }}>{children}</h2>;
+}
+
+function ToolDisclosure({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ borderTop: `1px solid ${hairline}` }}>
+      <details>
+        <summary>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            {title} <span style={{ color: secondary }}><Chevron /></span>
+          </span>
+        </summary>
+        <div style={{ paddingBottom: 16 }}>{children}</div>
+      </details>
+    </div>
+  );
+}
+
 function Diff({ before, after }: { before: Record<string, unknown>; after: Record<string, unknown> }) {
   const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
-  const cell: React.CSSProperties = { padding: "8px 10px", textAlign: "left", verticalAlign: "top" };
+  const cell: React.CSSProperties = { padding: "10px 12px 10px 0", textAlign: "left", verticalAlign: "top" };
   return (
-    <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 14, background: "#fff",
-      border: "1px solid #e7e0d2", borderRadius: 10, overflow: "hidden" }}>
-      <thead><tr style={{ background: "#f5f0e6" }}>
-        <th style={cell}>field</th><th style={cell}>before</th><th style={cell}>after</th>
-      </tr></thead>
+    <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 15 }}>
+      <thead>
+        <tr style={{ borderBottom: `1px solid ${hairline}` }}>
+          <th style={{ ...cell, fontSize: 12, fontWeight: 500, color: secondary }}>field</th>
+          <th style={{ ...cell, fontSize: 12, fontWeight: 500, color: secondary }}>before</th>
+          <th style={{ ...cell, fontSize: 12, fontWeight: 500, color: secondary }}>after</th>
+        </tr>
+      </thead>
       <tbody>
         {keys.map((k) => {
           const changed = JSON.stringify(before[k]) !== JSON.stringify(after[k]);
           return (
-            <tr key={k} style={changed ? { background: "#fef3c7" } : undefined}>
-              <td style={cell}><code>{k}</code></td>
-              <td style={{ ...cell, overflowWrap: "anywhere" }}><code>{JSON.stringify(before[k])}</code></td>
-              <td style={{ ...cell, overflowWrap: "anywhere" }}><code>{JSON.stringify(after[k])}</code></td>
+            <tr key={k} style={changed
+              ? { background: "var(--wash)", borderBottom: `1px solid ${hairline}` }
+              : { borderBottom: `1px solid ${hairline}` }}>
+              <td style={cell}><code style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{k}</code></td>
+              <td style={{ ...cell, overflowWrap: "anywhere" }}>
+                <code style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{JSON.stringify(before[k])}</code>
+              </td>
+              <td style={{ ...cell, overflowWrap: "anywhere" }}>
+                <code style={{ fontFamily: "var(--mono)", fontSize: 13, fontWeight: changed ? 600 : 400 }}>
+                  {JSON.stringify(after[k])}
+                </code>
+              </td>
             </tr>
           );
         })}
       </tbody>
     </table>
   );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return <div style={{ background: "#fff", border: "1px solid #e7e0d2", borderRadius: 10,
-    padding: "12px 14px", marginBottom: 8 }}>{children}</div>;
 }
 
 function shortTime(iso: string) {
@@ -211,108 +309,130 @@ function Detail({ id, back }: { id: string; back: () => void }) {
     window.open(`${API}/cases/${id}/export`, "_blank");
   }
 
-  if (error) return <main><p role="alert" style={{ color: "crimson" }}>{error}</p><button onClick={back}>Back</button></main>;
-  if (!detail || !inv) return <main><p>Loading…</p></main>;
+  if (error) {
+    return (
+      <Shell>
+        <TopBar onBack={back} practice />
+        <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>
+      </Shell>
+    );
+  }
+  if (!detail || !inv) {
+    return (
+      <Shell>
+        <TopBar onBack={back} practice />
+        <p style={{ color: secondary }}>Loading…</p>
+      </Shell>
+    );
+  }
 
   return (
-    <div style={{
-      borderTop: detail.replay ? "10px solid #d6a94c" : "10px solid #dc2626",
-      minHeight: "100vh", background: detail.replay ? "#faf6ef" : "#fef2f2",
-    }}>
-      <span style={{
-        background: detail.replay ? "#d6a94c" : "#dc2626",
-        color: detail.replay ? "#1c1917" : "#fff",
-        fontSize: 12, letterSpacing: 2, padding: "4px 14px", borderRadius: "0 0 8px 0",
-      }}>
-        {detail.replay ? "PRACTICE · SYNTHETIC" : "LIVE FAL REQUEST"}
-      </span>
-      <main style={{ fontFamily: "Georgia, serif", maxWidth: 680, margin: "0 auto", padding: "24px 20px 80px" }}>
-      <p style={{ fontFamily: "system-ui", fontSize: 14 }}>
-        <button onClick={back} style={{ background: "none", border: "none", color: "#9a3412", textDecoration: "underline", cursor: "pointer", fontSize: 14, padding: 0 }}>
-          ← waiting
-        </button>
-      </p>
+    <Shell>
+      <TopBar onBack={back} practice={detail.replay} />
 
-      <h1>{disp ? ANSWER_TITLE[disp.disposition] : "Reading the case…"}</h1>
-      <p><em>“{detail.report}”</em></p>
+      <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em",
+        margin: "0 0 8px", textWrap: "balance" }}>
+        {disp ? ANSWER_TITLE[disp.disposition] : "Reading the case…"}
+      </h1>
+      <p style={{ fontSize: 17, color: secondary, margin: "0 0 32px" }}>“{detail.report}”</p>
 
       {closed
-        ? <div style={{ background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 12, padding: 18 }}>
-          <strong>{closed[0]}</strong><br /><small>{closed[1]}</small>
-        </div>
-        : (disp && <>
-          <div style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 12, padding: 18 }}>
+        ? <div style={{ display: "flex", gap: 12, padding: "20px 0",
+            borderTop: `1px solid ${hairline}`, borderBottom: `1px solid ${hairline}` }}>
+            <Check />
+            <div>
+              <div style={{ fontWeight: 600 }}>{closed[0]}</div>
+              <div style={{ fontSize: 15, color: secondary }}>{closed[1]}</div>
+            </div>
+          </div>
+        : (disp && <div style={{ margin: "0 0 8px" }}>
             {disp.disposition === "need-information"
-              ? <>Ask the customer for:<ul>{disp.missing?.map((m) => <li key={m}>{m}</li>)}</ul></>
+              ? <div style={{ marginBottom: 20 }}>Ask the customer for:
+                  <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+                    {disp.missing?.map((m) => <li key={m}>{m}</li>)}
+                  </ul>
+                </div>
               : disp.disposition === "correction"
-                ? <p>The request breaks the expected format. Send this fix?</p>
-                : <p>This won't clear with a retry or a tweak. Hand it to engineering?</p>}
-            <button onClick={decide} style={{
-              fontSize: 17, padding: "12px 26px", background: "#9a3412", color: "#fff",
-              border: "none", borderRadius: 10, cursor: "pointer",
-            }}>
-              {disp ? ANSWER_BUTTON[disp.disposition] : ""}
-            </button>
-          </div>
-        </>)}
+                ? <p style={{ margin: "0 0 20px" }}>The request breaks the expected format. Send this fix?</p>
+                : <p style={{ margin: "0 0 20px" }}>This won't clear with a retry or a tweak. Hand it to engineering?</p>}
+            <PrimaryButton onClick={decide}>{ANSWER_BUTTON[disp.disposition]}</PrimaryButton>
+          </div>)}
 
-      <h2>Why we think so</h2>
-      {inv.findings.map((f, i) => (
-        <Card key={i}>
-          <div>{f.observed_fact}</div>
-          <div style={{ fontSize: 13, color: "#57534e" }}>
-            Seen in {WHERE[f.category] ?? "the case record"} · sure: {f.confidence}
+      <SectionTitle>Why we think so</SectionTitle>
+      <div>
+        {inv.findings.map((f, i) => (
+          <div key={i} style={{ padding: "14px 0", borderBottom: `1px solid ${hairline}` }}>
+            <div>{f.observed_fact}</div>
+            <div style={{ fontSize: 13, color: secondary, marginTop: 2 }}>
+              Seen in {WHERE[f.category] ?? "the case record"} · sure: {f.confidence}
+            </div>
           </div>
-        </Card>
-      ))}
+        ))}
+      </div>
 
       {disp?.corrected_payload && <>
-        <h2>The change</h2>
+        <SectionTitle>The change</SectionTitle>
         <Diff before={detail.payload} after={disp.corrected_payload} />
       </>}
-      {disp?.packet && <details><summary>Escalation packet for engineering</summary>
-        <Card><pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12 }}>{JSON.stringify(disp.packet, null, 2)}</pre></Card></details>}
-
-      <h2>Replay / live</h2>
-      <button onClick={runReplay}>Run replay</button>{" "}
-      <button onClick={runLiveTest}>Live test (capped, needs approval)</button>
-      {replay && <p><span style={badge}>{replay.badge}</span> source <code>{replay.fixture_source}</code> → {replay.disposition} ({replay.submitted_at} – {replay.completed_at})</p>}
-      {liveMsg && <p>{liveMsg}</p>}
+      {disp?.packet && <ToolDisclosure title="Escalation packet for engineering">
+        <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 13,
+          fontFamily: "var(--mono)" }}>{JSON.stringify(disp.packet, null, 2)}</pre>
+      </ToolDisclosure>}
 
       {inv.schema_errors.some((e) => e.allowed && e.allowed.length > 0) && <>
-        <h2>Allowed values</h2>
+        <SectionTitle>Allowed values</SectionTitle>
         {inv.schema_errors.filter((e) => e.allowed && e.allowed.length > 0).map((e, i) => (
-          <p key={i}><code>{e.field}</code>{" "}
-            {e.allowed!.map((a) => (
-              <span key={String(a)} style={{ ...badge, marginRight: 6 }}>{String(a)}</span>
-            ))}
+          <p key={i} style={{ fontSize: 15, color: secondary }}>
+            <code style={{ fontFamily: "var(--mono)", fontSize: 13, color: ink }}>{e.field}</code>
+            {"  "}{e.allowed!.map(String).join("  ·  ")}
           </p>
         ))}
       </>}
 
-      <h2>Show me why</h2>
-      <details><summary>Queue and callback state</summary>
-        <ul>{inv.queue.map((q) => <li key={q.request_id}>{q.status}: {q.verdict}</li>)}</ul>
-        {inv.webhook.present && <p>{inv.webhook.reason}</p>}
-      </details>
-      <details><summary>Timeline ({audit.length} events)</summary>
-        <ul>{audit.map((a, i) => <li key={i}>{shortTime(a.timestamp)} — {a.actor} — {a.event_type}</li>)}</ul>
-      </details>
-      <details><summary>Export for engineering</summary>
-        <p><button onClick={downloadExport}>Download case JSON</button></p>
-      </details>
+      <SectionTitle>Show me why</SectionTitle>
+      <ToolDisclosure title="Queue and callback state">
+        <ul style={{ margin: "0 0 8px", paddingLeft: 20, fontSize: 15 }}>
+          {inv.queue.map((q) => <li key={q.request_id}>{q.status}: {q.verdict}</li>)}
+        </ul>
+        {inv.webhook.present && <p style={{ fontSize: 15, color: secondary }}>{inv.webhook.reason}</p>}
+      </ToolDisclosure>
+      <div style={{ borderTop: `1px solid ${hairline}` }}>
+        <ToolDisclosure title={`Timeline (${audit.length} events)`}>
+          <ul style={{ margin: "0 0 8px", paddingLeft: 20, fontSize: 15 }}>
+            {audit.map((a, i) => <li key={i}>{shortTime(a.timestamp)} — {a.actor} — {a.event_type}</li>)}
+          </ul>
+        </ToolDisclosure>
+      </div>
 
-      <h2>Customer draft (preview — approval required before sending)</h2>
+      <SectionTitle>Customer draft (preview — approval required before sending)</SectionTitle>
       {draft
-        ? <Card><pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 13 }}>{draft}</pre></Card>
-        : <p>No draft yet.</p>}
+        ? <p style={{ margin: "8px 0 0", fontSize: 15, whiteSpace: "pre-wrap" }}>{draft}</p>
+        : <p style={{ color: secondary }}>No draft yet.</p>}
 
-      <h2>More approvals</h2>
-      <label>Actor <input value={actor} onChange={(e) => setActor(e.target.value)} /></label>{" "}
-      <button onClick={() => approve("live-test")}>Approve paid run</button>{" "}
-      <button onClick={downloadExport}>Export case JSON</button>
-      </main>
-    </div>
+      <div style={{ marginTop: 40, borderTop: `1px solid ${hairline}` }}>
+        <ToolDisclosure title="Replay / live">
+          <QuietButton onClick={runReplay}>Run replay</QuietButton>
+          <div style={{ height: 4 }} />
+          <QuietButton onClick={runLiveTest}>Live test (capped, needs approval)</QuietButton>
+          {replay && <p style={{ fontSize: 14, color: secondary }}>
+            {replay.badge} · source <code style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{replay.fixture_source}</code> → {replay.disposition}
+          </p>}
+          {liveMsg && <p style={{ fontSize: 14, color: secondary }}>{liveMsg}</p>}
+        </ToolDisclosure>
+      </div>
+      <div style={{ borderTop: `1px solid ${hairline}`, borderBottom: `1px solid ${hairline}` }}>
+        <ToolDisclosure title="More approvals">
+          <label style={{ display: "block", fontSize: 15, marginBottom: 4 }}>
+            Actor
+            <input value={actor} onChange={(e) => setActor(e.target.value)}
+              style={{ marginTop: 6, maxWidth: 280 }} />
+          </label>
+          <QuietButton onClick={() => approve("live-test")}>Approve paid run</QuietButton>
+          <div style={{ height: 4 }} />
+          <QuietButton onClick={downloadExport}>Export case JSON</QuietButton>
+        </ToolDisclosure>
+      </div>
+    </Shell>
   );
 }
 
@@ -351,43 +471,56 @@ function App() {
   if (selected) return <Detail id={selected} back={() => { setSelected(null); void refresh(); }} />;
 
   return (
-    <div style={{ borderTop: "10px solid #d6a94c", minHeight: "100vh", background: "#faf6ef" }}>
-      <span style={{ background: "#d6a94c", fontSize: 12, letterSpacing: 2, padding: "4px 14px", borderRadius: "0 0 8px 0" }}>
-        PRACTICE · SYNTHETIC
-      </span>
-      <main style={{ fontFamily: "Georgia, serif", maxWidth: 680, margin: "0 auto", padding: "24px 20px 80px" }}>
-        <p style={{ fontFamily: "system-ui", fontSize: 14, color: "#57534e" }}>{cases.length} waiting.</p>
-        <h1>What needs you most?</h1>
-        {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
-        {cases.length === 0 && !error && (
-          <p style={{ fontFamily: "system-ui", fontSize: 15, color: "#57534e" }}>
-            Nothing waiting. Import a fixture through the API or add a case below.
-          </p>
-        )}
-        {cases.map((c) => (
-          <div key={c.id} style={{ marginBottom: 14 }}>
-            <button onClick={() => setSelected(c.id)}
-              style={{ background: "none", border: "none", color: "#9a3412", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", fontSize: 16, padding: 0, textAlign: "left", fontFamily: "Georgia, serif" }}>
-              {c.report ? c.report.slice(0, 70) : "Untitled report"}
-            </button>
-            <div style={{ fontFamily: "system-ui", fontSize: 13, color: "#57534e", marginTop: 2 }}>
-              {c.disposition ? ANSWER_STATE[c.disposition] ?? c.disposition : "not read yet"}
-            </div>
-          </div>
-        ))}
-        <p style={{ fontFamily: "system-ui", fontSize: 14, color: "#57534e" }}>
-          Practice room — nothing here touches real traffic.
+    <Shell>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between",
+        padding: "8px 0 16px", borderBottom: `1px solid ${hairline}`, marginBottom: 24 }}>
+        <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em" }}>Request Rescue</span>
+        <span style={{ fontSize: 11, letterSpacing: "0.12em", color: secondary }}>PRACTICE · SYNTHETIC</span>
+      </div>
+      <p style={{ fontSize: 15, color: secondary, margin: "0 0 4px" }}>{cases.length} waiting.</p>
+      <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em",
+        margin: "0 0 16px", textWrap: "balance" }}>What needs you most?</h1>
+      {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
+      {cases.length === 0 && !error && (
+        <p style={{ fontSize: 15, color: secondary }}>
+          Nothing waiting. Import a fixture through the API or add a case below.
         </p>
+      )}
+      <div>
+        {cases.map((c) => (
+          <button key={c.id} onClick={() => setSelected(c.id)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 12, width: "100%", background: "none", border: "none",
+              borderBottom: `1px solid ${hairline}`, cursor: "pointer",
+              fontSize: 17, padding: "14px 0", textAlign: "left", color: ink }}>
+            <span>
+              <span style={{ display: "block" }}>{c.report ? c.report.slice(0, 70) : "Untitled report"}</span>
+              <span style={{ display: "block", fontSize: 13, color: secondary, marginTop: 2 }}>
+                {c.disposition ? ANSWER_STATE[c.disposition] ?? c.disposition : "not read yet"}
+              </span>
+            </span>
+            <span style={{ color: secondary }}><Chevron /></span>
+          </button>
+        ))}
+      </div>
+      <p style={{ fontSize: 14, color: secondary, margin: "24px 0 0" }}>
+        Practice room — nothing here touches real traffic.
+      </p>
+      <div style={{ marginTop: 8, borderTop: `1px solid ${hairline}` }}>
         <details>
-          <summary style={{ fontFamily: "system-ui", fontSize: 14, cursor: "pointer" }}>New case</summary>
-          <form onSubmit={createCase} style={{ marginTop: 8 }}>
-            <input value={endpointId} onChange={(e) => setEndpointId(e.target.value)} aria-label="endpoint id" style={{ width: "100%", marginBottom: 8 }} />
-            <textarea value={report} onChange={(e) => setReport(e.target.value)} placeholder="Customer report (sanitized — no keys)" rows={3} style={{ width: "100%" }} />
-            <button type="submit">Create case</button>
+          <summary style={{ fontSize: 15, color: secondary }}>New case</summary>
+          <form onSubmit={createCase} style={{ paddingBottom: 16 }}>
+            <input value={endpointId} onChange={(e) => setEndpointId(e.target.value)}
+              aria-label="endpoint id" style={{ marginBottom: 8 }} />
+            <textarea value={report} onChange={(e) => setReport(e.target.value)}
+              placeholder="Customer report (sanitized — no keys)" rows={3} />
+            <div style={{ marginTop: 12 }}>
+              <PrimaryButton type="submit">Create case</PrimaryButton>
+            </div>
           </form>
         </details>
-      </main>
-    </div>
+      </div>
+    </Shell>
   );
 }
 
