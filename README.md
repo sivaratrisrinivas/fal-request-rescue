@@ -26,6 +26,11 @@ docker compose up -d --build
 Open http://localhost:8080 for the UI. The API lives at
 http://localhost:8000. When you finish, run `docker compose down`.
 
+Live demo (Render free tier): UI at
+https://fal-request-rescue-1.onrender.com, API at
+https://fal-request-rescue.onrender.com. Free services sleep when idle,
+so the first load after a while takes ~a minute to wake up.
+
 Preview runs use the Gemini API free tier (no credits) and never touch fal.
 Put your key in the server environment as `GEMINI_API_KEY` and the app
 enforces a daily quota in code. Without a key, or past quota, it tells you
@@ -115,7 +120,7 @@ flowchart TD
     API --> I[investigate<br/>schema, queue, webhook, allowlist]
     I --> SCH[pinned schemas]
     I --> E[engine<br/>one answer]
-    E --> P[decide_run<br/>pending, runner, caps, approval]
+    E --> P[decide_run<br/>pending, key, caps, quota, approval]
     P --> O[Gemini preview<br/>server side, mocked in tests]
     P --> F[Gemini free tier<br/>quota in code, $0, mocked in tests]
     P --> DB
