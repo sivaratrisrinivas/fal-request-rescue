@@ -58,7 +58,8 @@ type ReplayOut = {
   submitted_at: string; completed_at: string; disposition: string;
 };
 
-const API = "";
+const API =
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL ?? "";
 const WHERE: Record<string, string> = {
   "schema-validation": "the request, checked against the expected format",
   "queue-state": "the queue status",
