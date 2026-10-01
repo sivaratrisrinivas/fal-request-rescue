@@ -63,6 +63,8 @@ class LiveTestRequest(BaseModel):
     cost_estimate_usd: float | None = None
     model_recommends: bool = False
     mode: str = "record"
+    # Accepted for compatibility but ignored by the live gate, which reads
+    # only the server-recorded status check for the case.
     status_checked: bool = False
 
 
@@ -78,6 +80,17 @@ def _redact_inputs(report: str, payload, response_body):
     if response_body is not None:
         resp_red, s3 = redact_json(response_body)
     return report_red, payload_red, resp_red, bool(s1 or s2 or s3)
+
+
+def _redact_extra_evidence(extra) -> tuple[list, bool]:
+    """Redact imported evidence items (including nested content) before storage."""
+    redacted: list = []
+    had_secret = False
+    for item in extra or []:
+        item_red, s = redact_json(item if isinstance(item, dict) else {"value": item})
+        redacted.append(item_red)
+        had_secret = had_secret or s
+    return redacted, had_secret
 
 
 def _error(status: int, code: str, message: str, details=None):
@@ -161,6 +174,8 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             webhook_red, s = redact_json(body["webhook"])
             had_secret = had_secret or s
         extra = body.get("evidence") if isinstance(body.get("evidence"), list) else None
+        extra_red, s_extra = _redact_extra_evidence(extra)
+        had_secret = had_secret or s_extra
         case = store.create_case(
             db_path,
             endpoint_id=endpoint_id,
@@ -169,7 +184,7 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
             payload_redacted=payload_red,
             response_redacted=resp_red,
             had_secret=had_secret,
-            extra_evidence=extra,
+            extra_evidence=extra_red,
             queue_events=queue_red if isinstance(queue_red, list) else [],
             webhook=webhook_red,
             origin=str(body.get("origin", "analyst")),
@@ -296,19 +311,32 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
 
     @app.post("/cases/{case_id}/request-status")
     def request_status(case_id: str, body: StatusCheckRequest):
-        """Status lookup that never fabricates: recorded runs first, labeled mock otherwise."""
+        """Status lookup that never fabricates: recorded runs first, labeled mock otherwise.
+
+        Every lookup through this flow is persisted as a server-side
+        status-check record, which is what unlocks the pending-status gate
+        for a preview run (fresh within STATUS_CHECK_TTL_SECONDS).
+        """
         hist = store.history(db_path, case_id)
         if hist is None:
             return _error(404, "NOT_FOUND", f"Case {case_id} not found")
         for action in hist["actions"]:
             result = action.get("result", {})
             if result.get("request_id") == body.request_id:
-                return {"request_id": body.request_id, "status": result.get("status", "UNKNOWN"),
-                        "source": "recorded-run", "observed_status": result.get("observed_status"),
-                        "note": "Read from this case's recorded runs, not a fresh lookup."}
-        return {"request_id": body.request_id, "status": "UNKNOWN",
-                "source": "mock-status-api",
-                "note": "No recorded run with this ID on the case; no live lookup performed."}
+                out = {"request_id": body.request_id, "status": result.get("status", "UNKNOWN"),
+                       "source": "recorded-run", "observed_status": result.get("observed_status"),
+                       "note": "Read from this case's recorded runs, not a fresh lookup."}
+                store.save_action(db_path, case_id, "status-check",
+                                  store._digest({"request_id": body.request_id}), out,
+                                  approval_state="approved")
+                return out
+        out = {"request_id": body.request_id, "status": "UNKNOWN",
+               "source": "mock-status-api",
+               "note": "No recorded run with this ID on the case; no live lookup performed."}
+        store.save_action(db_path, case_id, "status-check",
+                          store._digest({"request_id": body.request_id}), out,
+                          approval_state="approved")
+        return out
 
     @app.post("/cases/{case_id}/live-test")
     def live_test(case_id: str, body: LiveTestRequest):
@@ -343,6 +371,9 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         inv = run_investigation(case)
         pending = [q["request_id"] for q in inv["queue"]
                    if q["status"] in ("IN_QUEUE", "IN_PROGRESS")]
+        # Server-owned gate: the client's status_checked flag is ignored. Only a
+        # fresh check recorded through this case's status-check flow unlocks pending.
+        status_checked = store.fresh_status_check_exists(db_path, case_id)
         # Local runner: no key exists, reachability is proven at submit;
         # cost is $0, so caps meter abuse, not money.
         cost = 0.0
@@ -351,7 +382,7 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
                              spent=store.spend_total(db_path, case_id),
                              session_cap=SESSION_CAP_USD, day_cap=DAY_CAP_USD, cost=cost,
                              approved=store.approved_action_exists(db_path, case_id, "live-test"),
-                             status_checked=body.status_checked,
+                             status_checked=status_checked,
                              daily_runs=store.live_runs_today(db_path),
                              quota=daily_quota())
         if not verdict["allowed"]:
@@ -371,6 +402,9 @@ def create_app(db_path: str = "data/request_rescue.db") -> FastAPI:
         action = store.save_action(
             db_path, case_id, "live-test", store._digest(submitted),
             {"status": submitted["status"], "request_id": submitted["request_id"],
+             "provider": "gemini", "kind": "prompt-preview",
+             "preview_note": ("Gemini prompt preview only — not submitted to fal; "
+                              "does not validate fal rendering, queue, or callback behavior."),
              "submitted_at": submitted["submitted_at"],
              "completed_at": submitted.get("completed_at"),
              "response_preview": submitted.get("response_preview"),

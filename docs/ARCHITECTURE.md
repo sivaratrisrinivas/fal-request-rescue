@@ -11,9 +11,10 @@ escalation packet), with human approval on paid runs and customer text.
   evidence citation, and the fixed diagnostic allowlist (`ALLOWLIST`; no shell,
   browser, or code execution); `engine` decides the single disposition and
   renders deterministic customer drafts; `llm` is a server-side Gemini
-  adapter (temp 0, JSON mode, draft re-validated in the route); `fal_live` is
-  the server-side live executor over the Gemini API free tier ($0 per run, daily
-  quota enforced in code); `policy` classifies
+  adapter (temp 0, JSON mode, draft re-validated in the route); `gemini_live` is
+  the server-side Gemini prompt preview over the Gemini API free tier ($0 per
+  run, daily quota enforced in code) — a preview of the prompt, never a fal
+  request; `policy` classifies
   retryable errors with attempt caps; `store` is SQLite (cases, evidence,
   findings, actions, audit events).
 - `frontend` (React/TS, Bun toolchain, nginx in deploy): inbox + case detail

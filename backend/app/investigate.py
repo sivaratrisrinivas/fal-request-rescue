@@ -119,7 +119,7 @@ def _delivery_key(d: dict, index: int) -> str:
 
 def interpret_webhook(deliveries: list) -> dict:
     if not deliveries:
-        return {"present": False, "verified": False,
+        return {"present": False, "verified": False, "verification": "absent",
                 "reason": "No webhook delivery evidence attached.",
                 "duplicate": False, "logical_actions": 0, "status": None}
     keys = [_delivery_key(d, i) for i, d in enumerate(deliveries)]
@@ -129,18 +129,31 @@ def interpret_webhook(deliveries: list) -> dict:
     duplicate = any(n > 1 for n in seen.values())
     first = deliveries[0]
     status = first.get("delivery_status")
+    # Missing or null validation fields never count as a successful check.
+    # "Reported valid" is imported evidence, not cryptographic proof — this
+    # app performs no signature verification of its own.
     if first.get("signature_present") is not True:
+        verification = "unverified"
         verified, reason = False, "Missing webhook signature — reject callback as unverified."
     elif first.get("signature_valid") is False:
-        verified, reason = False, "Invalid webhook signature — reject callback as unverified."
+        verification = "invalid"
+        verified, reason = False, "Webhook signature reported invalid — reject callback as unverified."
     elif first.get("signature_stale") is True:
-        verified, reason = False, "Stale webhook signature — reject callback as unverified."
+        verification = "stale"
+        verified, reason = False, "Webhook signature reported stale — reject callback as unverified."
+    elif first.get("signature_valid") is True:
+        verification = "reported-valid"
+        verified, reason = True, ("Webhook signature reported valid in imported evidence "
+                                  "(not independently verified) — treat as reported, not proven.")
     else:
-        verified, reason = True, "Signature present and fresh."
+        verification = "unknown"
+        verified, reason = False, ("Signature present but validation status missing — "
+                                   "reject callback as unverified.")
     if status == "ERROR":
         reason += (" Callback delivery ERROR is a delivery result, not a queue-state"
                    " failure; the queue-item status decides the inference outcome.")
-    return {"present": True, "verified": verified, "reason": reason,
+    return {"present": True, "verified": verified, "verification": verification,
+            "reason": reason,
             "duplicate": duplicate, "logical_actions": len(seen), "status": status}
 
 

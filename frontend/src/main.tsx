@@ -41,7 +41,7 @@ type InvestigateOut = {
   schema_snapshot: { version: string; known: boolean; stale: boolean };
   schema_errors: SchemaError[];
   queue: { request_id: string; status: string; verdict: string }[];
-  webhook: { present: boolean; verified: boolean; reason: string };
+  webhook: { present: boolean; verified: boolean; verification?: string; reason: string };
   findings: Finding[];
   diagnostics_used: string[];
 };
@@ -298,9 +298,9 @@ function Detail({ id, back }: { id: string; back: () => void }) {
     setLiveMsg(null);
     try {
       const out = await post<{ result: Record<string, unknown> }>(`/cases/${id}/live-test`, { mode: "live" });
-      setLiveMsg(`Live submitted: ${JSON.stringify(out.result)}`);
+      setLiveMsg(`Preview submitted: ${JSON.stringify(out.result)}`);
     } catch (e) {
-      setLiveMsg(`Live blocked: ${e}`);
+      setLiveMsg(`Preview blocked: ${e}`);
     }
     await load();
   }
@@ -410,10 +410,10 @@ function Detail({ id, back }: { id: string; back: () => void }) {
         : <p style={{ color: secondary }}>No draft yet.</p>}
 
       <div style={{ marginTop: 40, borderTop: `1px solid ${hairline}` }}>
-        <ToolDisclosure title="Replay / live">
+        <ToolDisclosure title="Replay / preview">
           <QuietButton onClick={runReplay}>Run replay</QuietButton>
           <div style={{ height: 4 }} />
-          <QuietButton onClick={runLiveTest}>Live test (capped, needs approval)</QuietButton>
+          <QuietButton onClick={runLiveTest}>Gemini prompt preview (capped, needs approval)</QuietButton>
           {replay && <p style={{ fontSize: 14, color: secondary }}>
             {replay.badge} · source <code style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{replay.fixture_source}</code> → {replay.disposition}
           </p>}
@@ -427,7 +427,7 @@ function Detail({ id, back }: { id: string; back: () => void }) {
             <input value={actor} onChange={(e) => setActor(e.target.value)}
               style={{ marginTop: 6, maxWidth: 280 }} />
           </label>
-          <QuietButton onClick={() => approve("live-test")}>Approve paid run</QuietButton>
+          <QuietButton onClick={() => approve("live-test")}>Approve preview run</QuietButton>
           <div style={{ height: 4 }} />
           <QuietButton onClick={downloadExport}>Export case JSON</QuietButton>
         </ToolDisclosure>

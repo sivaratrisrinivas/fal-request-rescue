@@ -18,7 +18,7 @@ Canonical domain language. If usage conflicts with this file, this file wins unt
 - **need-information**: A disposition requesting exact missing artifacts (request ID, timestamp, endpoint, trace detail). Invents no values.
 - **escalation packet**: An engineering handoff: issue statement, repro steps, sanitized payload, observed vs expected, evidence links, falsifiable hypothesis.
 - **replay**: Execution against a local synthetic fixture. Labeled in UI, never implied as live. Default mode, needs no credentials.
-- **live test**: Opt-in server-side call to fal via adapter, with explicit approval and spend cap. Records request ID, timestamps, status, cost estimate.
+- **live test**: Opt-in server-side Gemini prompt preview, with explicit approval and spend cap. Records provider, request ID, timestamps, status, cost estimate. Never submits to fal.
 - **redaction**: Removal of secrets (API keys, passwords, credentials) from storage, model context, and exports before save or send.
 - **approval**: Explicit analyst consent for a paid run or customer-facing text. Records who approved and what the tool returned.
 - **execution policy**: The gate order deciding what may run: pending-status check, then key presence, then spend caps, then approval. Caps precede approvals and approvals never override caps. Lives in one module; routes adapt its verdicts.

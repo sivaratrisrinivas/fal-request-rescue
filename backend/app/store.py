@@ -308,6 +308,41 @@ def history(db_path: str, case_id: str) -> dict | None:
             "findings": findings, "actions": actions, "audit": audit}
 
 
+# A recorded status check satisfies the pending-status gate for this long.
+# Short on purpose: queue state moves, so a stale check must not unlock a run.
+STATUS_CHECK_TTL_SECONDS = 900
+
+
+def fresh_status_check_exists(db_path: str, case_id: str,
+                               max_age_seconds: int = STATUS_CHECK_TTL_SECONDS) -> bool:
+    """True when this case has a server-recorded status check within TTL.
+
+    The run gate reads this, never a client-supplied flag: only a check that
+    went through the server's status-check flow can unlock a pending run.
+    """
+    from datetime import datetime, timezone
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT result, created_at FROM actions WHERE case_id = ? AND action_type = 'status-check'"
+            " AND approval_state = 'approved' ORDER BY created_at DESC LIMIT 5",
+            (case_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    now = datetime.now(timezone.utc)
+    for row in rows:
+        try:
+            checked = datetime.fromisoformat(row["created_at"])
+        except (ValueError, TypeError):
+            continue
+        if checked.tzinfo is None:
+            checked = checked.replace(tzinfo=timezone.utc)
+        if (now - checked).total_seconds() <= max_age_seconds:
+            return True
+    return False
+
+
 def live_runs_today(db_path: str) -> int:
     """Approved live runs since UTC midnight: the free-quota meter."""
     conn = _connect(db_path)

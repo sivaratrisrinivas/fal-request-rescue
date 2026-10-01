@@ -13,7 +13,8 @@ it is the worked example below.
 - 0:55–1:35. Show the evidence trail, the deterministic schema failure with
   allowed values, and the field-level correction diff.
 - 1:35–2:05. Run replay (badge + fixture source + timestamps) and approve
-  the correction as `analyst`. Live test stays capped and quota-guarded.
+  the correction as `analyst`. The Gemini prompt preview stays capped and
+  quota-guarded — and stays a preview: it never submits to fal.
 - 2:05–2:30. Preview the customer draft, then export the case JSON.
 - 2:30–3:00. Show `eval/REPORT.md` (70 cases, bar pass) and `docs/ROI.md`
   inputs — labeled scenario, fal's actual savings unknown.

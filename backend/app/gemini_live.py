@@ -1,8 +1,9 @@
-"""Live executor over the Gemini API free tier. No credits, no fal key.
+"""Prompt preview over the Gemini API free tier. No credits, no fal key.
 
-The live-test flow keeps its shape (approval, caps, daily quota, request ID,
-status, cost record) but executes the corrected prompt against a Gemini flash
-model instead of fal's queue. Cost per run is $0; the daily quota guard stays
+The preview flow keeps the run shape (approval, caps, daily quota, request ID,
+status, cost record) but sends the prompt to a Gemini flash model instead of
+fal's queue. It does not submit to fal and does not validate fal rendering,
+queue, or callback behavior. Cost per run is $0; the daily quota guard stays
 as an abuse meter. Only redacted payloads are sent, and the key stays in the
 server environment. Transport is mocked in tests.
 """

@@ -26,7 +26,7 @@ docker compose up -d --build
 Open http://localhost:8080 for the UI. The API lives at
 http://localhost:8000. When you finish, run `docker compose down`.
 
-Live tests run against the Gemini API free tier (no credits).
+Preview runs use the Gemini API free tier (no credits) and never touch fal.
 Put your key in the server environment as `GEMINI_API_KEY` and the app
 enforces a daily quota in code. Without a key, or past quota, it tells you
 so and stops.
@@ -46,9 +46,11 @@ so and stops.
    and the engineering export sit behind "show me why" links.
 6. Try a replay any time. It reruns the case against its fixture, cites the
    fixture by name, and records the run. Free, always.
-7. Touch live traffic only on purpose. A live test needs your approval first,
+7. Touch a preview only on purpose. A Gemini prompt preview needs your approval first,
    then must pass the spend caps and the daily free quota. It runs against a
-   free Gemini flash model, so each run costs $0.
+   free Gemini flash model, so each run costs $0 — and it is a preview of the
+   prompt only, not a fal request: it does not validate fal rendering, queue,
+   or callback behavior.
    Without a runner it tells you so and stops.
 
 ## How to develop it
@@ -84,8 +86,10 @@ gates all fire. Results land in `eval/REPORT.md`.
 
 Latest full run: 70 cases, every answer matching its gold, 11 of 11 on the
 supported held-out set, safety clean, all three gate probes firing. Re-verified
-2026-10-01 after a final cleanup pass: backend pytest 68/68 green, eval still
-70/70 with the release bar passing. Read that
+2026-10-01 after the safeguard pass (import redaction, webhook verification
+states, Gemini preview labels, server-owned status gate): backend pytest 78/78
+green including 10 new safeguard regressions, eval still 70/70 with the
+release bar passing, frontend types clean. Read that
 as a tripwire, not a trophy. The cases are synthetic families, so a green run
 means nothing broke, not that the app handles the wild. `eval/LIMITATIONS.md`
 says the rest.
@@ -102,7 +106,7 @@ flowchart TD
     I --> SCH[pinned schemas]
     I --> E[engine<br/>one answer]
     E --> P[decide_run<br/>pending, runner, caps, approval]
-    P --> O[Gemini adapter<br/>server side, mocked in tests]
+    P --> O[Gemini preview<br/>server side, mocked in tests]
     P --> F[Gemini free tier<br/>quota in code, $0, mocked in tests]
     P --> DB
     UI -.-> EV[eval harness<br/>70 cases plus gate probes]
