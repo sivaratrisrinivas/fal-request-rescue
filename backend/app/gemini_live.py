@@ -44,6 +44,6 @@ def submit(endpoint_id: str, payload: dict) -> dict:
             "model": model()}
 
 
-def fetch_status(status_url: str | None) -> dict:
+def fetch_status(status_url: str | None = None) -> dict:
     """Free-tier runs finish synchronously; there is nothing to poll."""
     return {"status": "COMPLETED"}

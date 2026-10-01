@@ -14,18 +14,14 @@ def _clamp_fix(payload: dict, errors: list) -> dict:
             fixed[field] = err["allowed"][0]
         elif err["code"] == "range":
             current = fixed.get(field)
-            schema_hint = err["message"]
-            if isinstance(current, (int, float)):
-                if "<=" in schema_hint or "maximum" in schema_hint:
-                    import re
-                    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:\)|\]|$)", schema_hint)
-                    bound = err.get("bound")
-                    if bound is None and m:
-                        bound = float(m.group(1))
-                    if bound is not None:
-                        fixed[field] = min(current, bound)
-                        if isinstance(current, int):
-                            fixed[field] = int(fixed[field])
+            bound = err.get("bound")
+            if isinstance(current, (int, float)) and isinstance(bound, (int, float)):
+                if err.get("constraint") in ("minimum", "exclusiveMinimum"):
+                    fixed[field] = max(current, bound)
+                else:
+                    fixed[field] = min(current, bound)
+                if isinstance(current, int):
+                    fixed[field] = int(fixed[field])
     return fixed
 
 

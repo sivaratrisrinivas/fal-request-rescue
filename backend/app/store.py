@@ -399,7 +399,6 @@ def get_case(db_path: str, case_id: str) -> dict | None:
         "status": row["status"],
         "had_secret": bool(row["had_secret"]),
         "origin": row["origin"] if "origin" in row.keys() else "analyst",
-        # Hard replay until ticket 05 adds the live path; the UI badges this flag.
         "replay": True,
         "disposition": latest_disposition(db_path, row["id"]),
         "evidence": [

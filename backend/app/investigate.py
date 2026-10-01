@@ -77,10 +77,11 @@ def validate_payload(payload: dict, endpoint_id: str, version: str) -> list:
         elif err.validator in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
                                "minLength", "maxLength", "minItems", "maxItems", "multipleOf"):
             field = ".".join(str(p) for p in err.absolute_path)
-            bound = err.validator_value
             errors.append({
                 "field": field, "code": "range",
-                "message": f"Out-of-range value for '{field}': {err.message} (constraint: {bound}).",
+                "message": f"Out-of-range value for '{field}': {err.message} (constraint: {err.validator_value}).",
+                "constraint": err.validator,
+                "bound": err.validator_value,
             })
         else:
             field = ".".join(str(p) for p in err.absolute_path) or "(root)"
@@ -143,12 +144,6 @@ def interpret_webhook(deliveries: list) -> dict:
             "duplicate": duplicate, "logical_actions": len(seen), "status": status}
 
 
-def mock_queue_lookup(request_ids: list) -> dict:
-    """Read-only stub for the queue_status_lookup diagnostic. Cites mock source."""
-    return {rid: {"source": "mock-status-api",
-                  "note": "Replay stub: no live lookup performed."} for rid in request_ids}
-
-
 def run_investigation(case: dict) -> dict:
     endpoint_id = case["endpoint_id"]
     version = case["schema_version"]
@@ -181,7 +176,6 @@ def run_investigation(case: dict) -> dict:
                          "observed_fact": err["message"],
                          "source_evidence_ids": payload_ids, "confidence": "high"})
     if queue_events:
-        mock_queue_lookup([q["request_id"] for q in queue])
         for q, ev in zip(queue, by_kind.get("queue_event", [])):
             findings.append({"category": "queue-state",
                              "observed_fact": f"{q['request_id']}: {q['verdict']}",

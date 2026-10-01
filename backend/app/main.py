@@ -12,7 +12,6 @@ from . import llm, gemini_live, store
 from .run_policy import daily_quota, decide_run
 from .engine import build_disposition, customer_draft
 from .investigate import ALLOWLIST, SCHEMA_DIR, run_investigation
-from .run_policy import decide_run
 from .redact import contains_secret, redact_json, redact_text
 
 SESSION_CAP_USD = float(os.environ.get("SESSION_CAP_USD", "2.0"))
@@ -72,7 +71,7 @@ class StatusCheckRequest(BaseModel):
 
 
 def _redact_inputs(report: str, payload, response_body):
-    """Single shared redaction path for create/import (see ticket 01 review)."""
+    """Single shared redaction path for create/import."""
     report_red, s1 = redact_text(str(report))
     payload_red, s2 = redact_json(payload if isinstance(payload, dict) else {"value": payload})
     resp_red, s3 = (None, False)

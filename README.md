@@ -83,7 +83,9 @@ gates all fire. Results land in `eval/REPORT.md`.
 ## What the checks say
 
 Latest full run: 70 cases, every answer matching its gold, 11 of 11 on the
-supported held-out set, safety clean, all three gate probes firing. Read that
+supported held-out set, safety clean, all three gate probes firing. Re-verified
+2026-10-01 after a final cleanup pass: backend pytest 68/68 green, eval still
+70/70 with the release bar passing. Read that
 as a tripwire, not a trophy. The cases are synthetic families, so a green run
 means nothing broke, not that the app handles the wild. `eval/LIMITATIONS.md`
 says the rest.
